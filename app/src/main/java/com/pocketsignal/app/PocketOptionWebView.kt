@@ -43,7 +43,7 @@ fun PocketOptionWebView(
         val webView = remember(context, reloadKey) {
             WebView(context).apply {
                 setBackgroundColor(android.graphics.Color.rgb(8, 13, 19))
-                setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)\n                isVerticalScrollBarEnabled = false\n                isHorizontalScrollBarEnabled = false\n                overScrollMode = View.OVER_SCROLL_NEVER
 
                 settings.apply {
                     javaScriptEnabled = true
