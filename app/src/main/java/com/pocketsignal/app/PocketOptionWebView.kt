@@ -241,7 +241,10 @@ private const val CHART_LAYOUT_REPAIR_SCRIPT = """
     var styleId = 'pocket-signal-chart-layout-repair';
     var css = [
       'html { height: 100vh !important; min-height: 100vh !important; }',
-      'body { height: 100vh !important; min-height: 100vh !important; max-height: 100vh !important; overflow: hidden !important; }',
+      'body { height: 100vh !important; min-height: 100vh !important; max-height: 100vh !important; overflow: visible !important; }',
+      'html { overflow: hidden !important; }',
+      '.m-main-wrap, .m-main-wrap__in, .main-table-wrap, .wrapper, .site-content.left-shadow, .page.traderoom, .charts.single, .layout-container, .chart-item { overflow: visible !important; }',
+      '[role="listbox"], [role="menu"], .dropdown-menu, .select2-dropdown, .el-select-dropdown, .ant-select-dropdown { z-index: 2147483000 !important; max-width: calc(100vw - 16px) !important; }',
       '.m-main-wrap.js-m-main-wrap { height: 100vh !important; min-height: 100vh !important; max-height: 100vh !important; }',
       '.m-main-wrap__in, .main-table-wrap, .wrapper, .site-content.left-shadow, #bar-chart, .page.traderoom, .charts.single, .layout-container, .chart-item, .chart, .chart-container { height: 100% !important; min-height: 0 !important; }',
       '.m-main-wrap__in, .main-table-wrap, .wrapper, .site-content.left-shadow, .layout-container { flex: 1 1 auto !important; min-height: 0 !important; }',
