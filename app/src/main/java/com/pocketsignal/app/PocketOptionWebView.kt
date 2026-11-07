@@ -293,6 +293,85 @@ private const val CHART_LAYOUT_REPAIR_SCRIPT = """
     document.querySelectorAll('.m-main-wrap__in, .main-table-wrap, .wrapper, .site-content.left-shadow, .layout-container')
       .forEach(function(el) { setImportant(el, 'flex', '1 1 auto'); });
     document.querySelectorAll('.chart-item').forEach(function(el) { setImportant(el, 'flex', '1 1 100%'); });
+    // Move the right-side Deals / Social Trading navigation strip to the bottom,
+    // matching the native Pocket Option mobile layout without changing its actions.
+    function moveTradingNavigationToBottom() {
+      if (document.querySelector('[data-ps-bottom-trading-nav="1"]')) return true;
+      var labels = ['сделки', 'социальная торговля', 'deals', 'social trading'];
+      var candidates = [];
+      Array.prototype.forEach.call(document.querySelectorAll('button, a, [role="button"], [role="menuitem"], li, div, span'), function(el) {
+        if (!el || !el.getBoundingClientRect) return;
+        var r = el.getBoundingClientRect();
+        if (r.width < 18 || r.height < 12 || r.width > 280 || r.height > 120) return;
+        var text = (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+        var aria = ((el.getAttribute('aria-label') || '') + ' ' + (el.getAttribute('title') || '')).trim().toLowerCase();
+        if (labels.indexOf(text) >= 0 || labels.some(function(label) { return aria === label; })) {
+          candidates.push(el);
+        }
+      });
+      if (candidates.length < 2) return false;
+      var first = candidates[0];
+      var second = candidates.find(function(el) { return el !== first && (el.contains(first) || first.contains(el) || el.parentElement !== first.parentElement); });
+      if (!second) second = candidates[1];
+      function interactive(el) {
+        var p = el;
+        for (var i = 0; p && i < 5; i++, p = p.parentElement) {
+          if (p.matches && p.matches('button, a, [role="button"], [role="menuitem"], li')) return p;
+        }
+        return el;
+      }
+      first = interactive(first);
+      second = interactive(second);
+      var ancestor = first.parentElement;
+      var selected = null;
+      for (var depth = 0; ancestor && depth < 9 && ancestor !== document.body; depth++, ancestor = ancestor.parentElement) {
+        var rect = ancestor.getBoundingClientRect();
+        if (ancestor.contains(second) && rect.width >= 24 && rect.width <= Math.max(190, window.innerWidth * 0.38)) {
+          selected = ancestor;
+        } else if (selected) {
+          break;
+        }
+      }
+      if (!selected) return false;
+      selected.setAttribute('data-ps-bottom-trading-nav', '1');
+      selected.style.setProperty('position', 'fixed', 'important');
+      selected.style.setProperty('left', '0', 'important');
+      selected.style.setProperty('right', '0', 'important');
+      selected.style.setProperty('top', 'auto', 'important');
+      selected.style.setProperty('bottom', '0', 'important');
+      selected.style.setProperty('width', '100vw', 'important');
+      selected.style.setProperty('max-width', '100vw', 'important');
+      selected.style.setProperty('height', '58px', 'important');
+      selected.style.setProperty('min-height', '58px', 'important');
+      selected.style.setProperty('display', 'flex', 'important');
+      selected.style.setProperty('flex-direction', 'row', 'important');
+      selected.style.setProperty('align-items', 'center', 'important');
+      selected.style.setProperty('justify-content', 'space-around', 'important');
+      selected.style.setProperty('gap', '4px', 'important');
+      selected.style.setProperty('padding', '4px 8px env(safe-area-inset-bottom) 8px', 'important');
+      selected.style.setProperty('box-sizing', 'border-box', 'important');
+      selected.style.setProperty('overflow', 'visible', 'important');
+      selected.style.setProperty('z-index', '2147482000', 'important');
+      selected.style.setProperty('background', 'rgba(8, 13, 19, 0.98)', 'important');
+      selected.querySelectorAll(':scope > *').forEach(function(item) {
+        item.style.setProperty('position', 'relative', 'important');
+        item.style.setProperty('flex', '1 1 0', 'important');
+        item.style.setProperty('width', 'auto', 'important');
+        item.style.setProperty('min-width', '0', 'important');
+        item.style.setProperty('max-width', 'none', 'important');
+        item.style.setProperty('height', '100%', 'important');
+        item.style.setProperty('display', 'flex', 'important');
+        item.style.setProperty('align-items', 'center', 'important');
+        item.style.setProperty('justify-content', 'center', 'important');
+      });
+      return true;
+    }
+    if (!moveTradingNavigationToBottom() && !window.__psTradingNavObserver) {
+      window.__psTradingNavObserver = new MutationObserver(function() {
+        if (moveTradingNavigationToBottom()) window.__psTradingNavObserver.disconnect();
+      });
+      window.__psTradingNavObserver.observe(document.documentElement, {childList:true, subtree:true});
+    }
     window.dispatchEvent(new Event('resize'));
     return JSON.stringify({
       applied: true,
