@@ -5,40 +5,44 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val ScreenBg = Color(0xFF0B1118)
-private val PanelBg = Color(0xFF151F2B)
+private val ScreenBg = Color(0xFF090F16)
+private val PanelBg = Color(0xEE14202B)
 private val Accent = Color(0xFF20D69A)
-private val Muted = Color(0xFF8A98A8)
+private val Muted = Color(0xFF9AA8B7)
+private val Warning = Color(0xFFFFC266)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { PocketSignalScreen() }
+        window.statusBarColor = android.graphics.Color.BLACK
+        window.navigationBarColor = android.graphics.Color.BLACK
+        setContent { PocketOptionIntegratedScreen() }
     }
 }
 
 @Composable
-fun PocketSignalScreen() {
-    var platformStatus by remember {
-        mutableStateOf("Ожидание загрузки платформы Pocket Option")
+private fun PocketOptionIntegratedScreen() {
+    val platformStatus = remember {
+        mutableStateOf("Подключение к Pocket Option…")
     }
 
     MaterialTheme(
@@ -48,71 +52,63 @@ fun PocketSignalScreen() {
             primary = Accent
         )
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(ScreenBg)
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            // The broker page remains the primary screen. Native analysis is a
+            // compact overlay; it never replaces or imitates the broker chart.
+            PocketOptionWebView(
+                modifier = Modifier.fillMaxSize(),
+                onStatus = { platformStatus.value = it }
+            )
+
+            AnalysisStrip(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 10.dp, end = 10.dp, bottom = 8.dp),
+                status = platformStatus.value
+            )
+        }
+    }
+}
+
+@Composable
+private fun AnalysisStrip(
+    modifier: Modifier = Modifier,
+    status: String
+) {
+    Surface(
+        modifier = modifier,
+        color = PanelBg,
+        contentColor = Color.White,
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = 6.dp,
+        shadowElevation = 8.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                "АНАЛИЗ",
+                color = Accent,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text("ALG", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            Text("ML", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            Surface(color = Color(0xFF49391F), shape = RoundedCornerShape(6.dp)) {
                 Text(
-                    "POCKET SIGNAL",
-                    color = Color.White,
-                    fontSize = 24.sp,
+                    "ОЖИДАНИЕ КОТИРОВОК",
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                    color = Warning,
+                    fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Text(
-                    "OTC MARKET MONITOR",
-                    color = Muted,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.5.sp
-                )
             }
-
-            Card(
-                colors = CardDefaults.cardColors(containerColor = PanelBg),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    Row {
-                        Text(
-                            "СЕССИЯ POCKET OPTION",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    Text(
-                        platformStatus,
-                        color = Accent,
-                        fontSize = 11.sp
-                    )
-                    Text(
-                        "Войди самостоятельно в отдельный аккаунт. Не отправляй пароль, cookies или SSID в чат и GitHub.",
-                        color = Muted,
-                        fontSize = 10.sp
-                    )
-                }
-            }
-
-            PocketOptionWebView(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                onStatus = { platformStatus = it }
-            )
-
-            Text(
-                "КОТИРОВКИ: ЕЩЁ НЕ ПОДКЛЮЧЕНЫ  •  СИГНАЛЫ: ОТКЛЮЧЕНЫ",
-                color = Color(0xFFFFC266),
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            )
         }
     }
 }
