@@ -166,6 +166,36 @@ private const val CHART_SNAPSHOT_SCRIPT = """
         paused: v.paused
       };
     });
+    function layoutInfo(el) {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const s = window.getComputedStyle(el);
+      return {
+        tag: el.tagName,
+        id: (el.id || '').slice(0, 60),
+        className: (typeof el.className === 'string' ? el.className : '').slice(0, 100),
+        rect: Math.round(r.width) + 'x' + Math.round(r.height),
+        offset: el.offsetWidth + 'x' + el.offsetHeight,
+        client: el.clientWidth + 'x' + el.clientHeight,
+        cssHeight: s.height,
+        minHeight: s.minHeight,
+        maxHeight: s.maxHeight,
+        display: s.display,
+        position: s.position,
+        flex: s.flex,
+        alignSelf: s.alignSelf,
+        overflow: s.overflow
+      };
+    }
+    const bodyChildren = Array.from(document.body ? document.body.children : [])
+      .slice(0, 16).map(layoutInfo);
+    const chartRoot = document.querySelector('#chart-1') || document.querySelector('canvas');
+    const chartAncestors = [];
+    for (let p = chartRoot, i = 0; p && i < 12; p = p.parentElement, i++) {
+      chartAncestors.push(layoutInfo(p));
+    }
+    const appRoots = Array.from(document.querySelectorAll('#app, #root, #app-root, #page, main, [id*="chart"]'))
+      .slice(0, 16).map(layoutInfo);
     const vv = window.visualViewport;
     const gl = !!(window.WebGLRenderingContext || window.WebGL2RenderingContext);
     return JSON.stringify({
@@ -176,6 +206,9 @@ private const val CHART_SNAPSHOT_SCRIPT = """
       dpr: window.devicePixelRatio || 1,
       documentElement: box(document.documentElement),
       body: box(document.body),
+      bodyChildren: bodyChildren,
+      appRoots: appRoots,
+      chartAncestors: chartAncestors,
       canvases: document.querySelectorAll('canvas').length,
       canvasInfo: canvases,
       iframes: document.querySelectorAll('iframe').length,
