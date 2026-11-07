@@ -56,7 +56,6 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun PocketSignalScreen() {
-    var platformStatus by remember { mutableStateOf("Подключение к Pocket Option…") }
     var reloadKey by remember { mutableIntStateOf(0) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     val diagnosticLog = remember { mutableStateListOf<String>() }
@@ -103,48 +102,37 @@ fun PocketSignalScreen() {
                 }
             }
 
-            Surface(color = PanelBg, shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text(platformStatus, color = Muted, fontSize = 10.sp, maxLines = 2)
-                    Row(verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()) {
-                        Text("СОБЫТИЙ: ${diagnosticLog.size}/40",
-                            color = Warning, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Surface(
-                                onClick = {
-                                    val report = diagnosticLog.joinToString("\n")
-                                    if (report.isBlank()) {
-                                        Toast.makeText(context, "Журнал пока пуст", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        clipboard.setPrimaryClip(ClipData.newPlainText("Pocket Signal diagnostics", report))
-                                        Toast.makeText(context, "Диагностика скопирована. Вставь её сюда в чат.", Toast.LENGTH_LONG).show()
-                                    }
-                                },
-                                color = Color(0xFF173A35),
-                                shape = RoundedCornerShape(6.dp)
-                            ) {
-                                Text("СКОПИРОВАТЬ", color = Accent, fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
+            Surface(
+                color = PanelBg,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(34.dp).padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Surface(
+                        onClick = {
+                            val report = diagnosticLog.joinToString("\\n")
+                            if (report.isBlank()) {
+                                Toast.makeText(context, "Журнал пока пуст", Toast.LENGTH_SHORT).show()
+                            } else {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("Pocket Signal diagnostics", report))
+                                Toast.makeText(context, "Диагностика скопирована. Вставь её сюда в чат.", Toast.LENGTH_LONG).show()
                             }
-                            Surface(
-                                onClick = { diagnosticLog.clear() },
-                                color = Color(0xFF26313D),
-                                shape = RoundedCornerShape(6.dp)
-                            ) {
-                                Text("ОЧИСТИТЬ", color = Muted, fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp))
-                            }
-                        }
-                    }
-                    diagnosticLog.takeLast(3).forEach { entry ->
-                        Text(entry, color = Muted, fontSize = 8.sp, maxLines = 1)
+                        },
+                        color = Color(0xFF173A35),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            "СКОПИРОВАТЬ",
+                            color = Accent,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                        )
                     }
                 }
             }
@@ -155,7 +143,6 @@ fun PocketSignalScreen() {
                     modifier = Modifier.fillMaxSize(),
                     onWebView = { webViewRef = it },
                     onStatus = { message ->
-                        platformStatus = message
                         val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
                         val entry = "[$timestamp] $message"
                         if (diagnosticLog.lastOrNull() != entry) {
