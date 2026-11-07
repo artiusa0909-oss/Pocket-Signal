@@ -44,7 +44,7 @@ private const val MOBILE_BOTTOM_NAV_REPAIR_SCRIPT = """
       /^(tournaments|tournam\.\.\.|турниры)$/i,
       /^(pending trades|pending tr\.\.\.|отложенные сделки)$/i
     ];
-    function norm(s) { return (s || '').replace(/\\s+/g, ' ').trim(); }
+    function norm(s) { return (s || '').replace(/\s+/g, ' ').trim(); }
     var nodes = Array.from(document.querySelectorAll('body *')).filter(function(el) {
       if (el.children.length > 3) return false;
       var t = norm(el.innerText || el.textContent);
