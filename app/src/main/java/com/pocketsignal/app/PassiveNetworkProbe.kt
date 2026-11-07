@@ -78,6 +78,69 @@ internal object PassiveNetworkProbe {
     return { type: typeof value };
   }
 
+  // Extract only market-related field names and value types from UTF-8 JSON.
+  // No payload values, identifiers or raw text are ever emitted.
+  function marketShape(value, depth) {
+    if (depth > 4) return { type: typeof value };
+    if (value === null) return { type: 'null' };
+    if (Array.isArray(value)) {
+      return {
+        type: 'array',
+        length: value.length,
+        item: value.length ? marketShape(value[0], depth + 1) : null
+      };
+    }
+    if (typeof value !== 'object') return { type: typeof value };
+
+    var allowed = /^(symbol|asset|instrument|pair|time|timestamp|ts|open|high|low|close|volume|price|rate|bid|ask|o|h|l|c|v|t|s|p|data|candles|quotes|history|ticks|ohlc|result|payload|params|period|interval|precision|digits|type|action|event|items|values|prices|bars|chart|market|success|status)$/i;
+    var keys = Object.keys(value).filter(function (key) { return allowed.test(key); }).slice(0, 32);
+    var fields = keys.map(function (key) {
+      var item = value[key];
+      var type = item === null ? 'null' : Array.isArray(item) ? 'array' : typeof item;
+      return key + ':' + type;
+    });
+    var nested = {};
+    keys.forEach(function (key) {
+      var item = value[key];
+      if (item && typeof item === 'object' && depth < 4) {
+        nested[key] = marketShape(item, depth + 1);
+      }
+    });
+    return { type: 'object', fields: fields, nested: nested };
+  }
+
+  function inspectBinaryText(bytes) {
+    var decoded;
+    try {
+      decoded = new TextDecoder('utf-8').decode(bytes);
+    } catch (_) {
+      return { encoding: 'not-utf8' };
+    }
+    var trimmed = decoded.replace(/^\\uFEFF/, '').trim();
+    var candidates = [trimmed];
+    var firstJson = trimmed.search(/[\\[{]/);
+    if (firstJson > 0) candidates.push(trimmed.slice(firstJson));
+    for (var i = 0; i < candidates.length; i++) {
+      try {
+        var parsed = JSON.parse(candidates[i]);
+        return {
+          encoding: 'utf-8',
+          jsonDetected: true,
+          framing: i === 0 ? 'plain-json' : 'prefixed-json',
+          structure: marketShape(parsed, 0)
+        };
+      } catch (_) {}
+    }
+    var first = trimmed.charAt(0);
+    return {
+      encoding: 'utf-8',
+      jsonDetected: false,
+      textLength: decoded.length,
+      framing: /^[0-9]+$/.test(first) ? 'numeric-prefix-or-protocol' :
+        first === '' ? 'empty-text' : 'text-protocol'
+    };
+  }
+
   // Classify binary framing without exporting bytes or attempting to decode
   // potentially sensitive account/session payloads.
   function binaryProfile(data) {
@@ -132,13 +195,17 @@ internal object PassiveNetworkProbe {
       format = 'low-entropy-structured-binary';
     }
 
-    return {
+    var profile = {
       format: format,
       bytes: length,
       sampledBytes: sampleLength,
       printableRatio: Math.round(printable / sampleLength * 100) / 100,
       entropyBitsPerByte: Math.round(entropy * 100) / 100
     };
+    if (printable / sampleLength > 0.92) {
+      profile.textStructure = inspectBinaryText(bytes);
+    }
+    return profile;
   }
 
   function describe(data) {
