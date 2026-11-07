@@ -41,6 +41,41 @@ private fun safeDiagnosticText(raw: String, limit: Int = 180): String {
         .take(limit)
 }
 
+private const val CHART_LAYOUT_REPAIR_SCRIPT = """
+(function() {
+  try {
+    var id = 'pocket-signal-layout-repair-v1';
+    if (!document.getElementById(id)) {
+      var style = document.createElement('style');
+      style.id = id;
+      style.textContent = [
+        'html, body { height: 100% !important; min-height: 100% !important; }',
+        'body { min-height: 100vh !important; }',
+        '.m-main-wrap, .m-main-wrap__in, .main-table-wrap, .site-content, .page.traderoom, #bar-chart { height: auto !important; min-height: 100vh !important; }',
+        '.charts.single, .chart-item.is-quick, .chart { height: auto !important; min-height: 320px !important; }',
+        '#chart-1.chart-container { height: min(68vh, 560px) !important; min-height: 320px !important; }'
+      ].join('\\n');
+      (document.head || document.documentElement).appendChild(style);
+    }
+    requestAnimationFrame(function() {
+      window.dispatchEvent(new Event('resize'));
+      if (window.visualViewport) {
+        window.visualViewport.dispatchEvent(new Event('resize'));
+      }
+    });
+    return JSON.stringify({
+      applied: true,
+      styleId: id,
+      htmlHeight: getComputedStyle(document.documentElement).height,
+      bodyHeight: document.body ? getComputedStyle(document.body).height : null,
+      chartFound: !!document.querySelector('#chart-1')
+    });
+  } catch (e) {
+    return JSON.stringify({applied:false,error:String(e).slice(0,100)});
+  }
+})()
+"""
+
 private const val CHART_SNAPSHOT_SCRIPT = """
 (function() {
   try {
@@ -235,12 +270,20 @@ private const val CHART_SNAPSHOT_SCRIPT = """
 """
 
 
+private fun applyChartLayoutRepair(
+    view: WebView,
+    reportStatus: (String) -> Unit
+) {
+    view.evaluateJavascript(CHART_LAYOUT_REPAIR_SCRIPT) { result ->
+        reportStatus("Коррекция разметки графика: ${result?.take(500) ?: "нет ответа"}")
+    }
+}
+
 private fun captureChartSnapshot(
     view: WebView,
     label: String,
     reportStatus: (String) -> Unit
 ) {
-    // Read-only snapshot: do not inject CSS, resize chart nodes, or dispatch resize events.
     view.evaluateJavascript(CHART_SNAPSHOT_SCRIPT) { result ->
         val safeResult = result?.take(6000) ?: "нет ответа"
         reportStatus("График $label (WebView ${view.width}x${view.height}): $safeResult")
@@ -351,14 +394,17 @@ fun PocketOptionWebView(
                     }
 
                     override fun onPageFinished(view: WebView, url: String?) {
-                        reportStatus("Страница загружена. Снимаем параметры графика…")
-                        captureChartSnapshot(view, "сразу после загрузки", reportStatus)
+                        reportStatus("Страница загружена. Проверяем геометрию графика…")
+                        captureChartSnapshot(view, "до коррекции", reportStatus)
                         view.postDelayed({
-                            captureChartSnapshot(view, "через 1,5 секунды", reportStatus)
-                        }, 1500L)
+                            applyChartLayoutRepair(view, reportStatus)
+                        }, 350L)
                         view.postDelayed({
-                            captureChartSnapshot(view, "через 4 секунды", reportStatus)
-                        }, 4000L)
+                            captureChartSnapshot(view, "после коррекции (1,5 секунды)", reportStatus)
+                        }, 1800L)
+                        view.postDelayed({
+                            captureChartSnapshot(view, "после коррекции (4 секунды)", reportStatus)
+                        }, 4300L)
                     }
 
                     override fun onReceivedError(
