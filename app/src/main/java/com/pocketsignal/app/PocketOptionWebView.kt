@@ -76,13 +76,26 @@ fun PocketOptionWebView(
                         if (newProgress < 100) {
                             reportStatus("Загрузка торговой платформы: " + newProgress + "%")
                         } else {
-                            reportStatus("Страница загружена. Проверяем отображение терминала…")
+                            reportStatus("Страница загружена. Диагностируем модуль графика…")
                         }
                     }
 
                     override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
-                        // Console text may contain page data; do not forward it to logs or UI.
+                        if (message.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR) {
+                            val source = message.sourceId()?.substringAfterLast('/') ?: "скрипт"
+                            reportStatus("Ошибка JavaScript: $source, строка ${message.lineNumber()}.")
+                        }
                         return true
+                    }
+
+                    override fun onCreateWindow(
+                        view: WebView,
+                        isDialog: Boolean,
+                        isUserGesture: Boolean,
+                        resultMsg: android.os.Message
+                    ): Boolean {
+                        reportStatus("Сайт запросил отдельное окно. Проверяем поддержку торгового терминала…")
+                        return false
                     }
                 }
 
@@ -112,7 +125,13 @@ fun PocketOptionWebView(
                     }
 
                     override fun onPageFinished(view: WebView, url: String?) {
-                        reportStatus("Загрузка страницы завершена. Если график пустой, нажми «Обновить».")
+                        reportStatus("Страница загружена. Проверяем элементы графика…")
+                        view.evaluateJavascript(
+                            "(function(){return JSON.stringify({ready:document.readyState,title:document.title,iframes:document.getElementsByTagName('iframe').length,canvas:document.getElementsByTagName('canvas').length,svg:document.getElementsByTagName('svg').length,body:!!document.body,bodyHeight:document.body?document.body.scrollHeight:0});})()"
+                        ) { result ->
+                            val safeResult = result?.take(240) ?: "нет ответа"
+                            reportStatus("Диагностика страницы: $safeResult")
+                        }
                     }
 
                     override fun onReceivedError(
@@ -120,12 +139,11 @@ fun PocketOptionWebView(
                         request: WebResourceRequest,
                         error: WebResourceError
                     ) {
+                        val host = request.url.host ?: "неизвестный ресурс"
                         if (request.isForMainFrame) {
-                            reportStatus(
-                                "Ошибка загрузки страницы (" +
-                                    error.errorCode +
-                                    "). Проверь соединение и WebView."
-                            )
+                            reportStatus("Ошибка основной страницы: код ${error.errorCode}, $host.")
+                        } else {
+                            reportStatus("Не загрузился ресурс графика/страницы: код ${error.errorCode}, $host.")
                         }
                     }
 
@@ -134,8 +152,10 @@ fun PocketOptionWebView(
                         request: WebResourceRequest,
                         errorResponse: android.webkit.WebResourceResponse
                     ) {
-                        if (request.isForMainFrame) {
-                            reportStatus("Сайт вернул HTTP " + errorResponse.statusCode + ".")
+                        val host = request.url.host ?: "неизвестный ресурс"
+                        if (errorResponse.statusCode >= 400) {
+                            reportStatus("HTTP ${errorResponse.statusCode}: $host" +
+                                if (request.isForMainFrame) " (основная страница)." else " (ресурс страницы/графика).")
                         }
                     }
 
