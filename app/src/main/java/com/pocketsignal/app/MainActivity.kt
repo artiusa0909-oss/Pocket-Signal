@@ -68,11 +68,11 @@ fun PocketSignalScreen() {
                 .fillMaxSize()
                 .background(ScreenBg)
                 .windowInsetsPadding(WindowInsets.systemBars)
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                .padding(vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().height(38.dp),
+                modifier = Modifier.fillMaxWidth().height(38.dp).padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
