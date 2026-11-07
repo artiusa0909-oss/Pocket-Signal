@@ -90,13 +90,38 @@ private const val MOBILE_BOTTOM_NAV_REPAIR_SCRIPT = """
         child.style.setProperty('justify-content', 'center', 'important');
       });
     }
-    var main = document.querySelector('.m-main-wrap.js-m-main-wrap');
-    if (main) {
-      main.style.setProperty('height', 'calc(100vh - 64px)', 'important');
-      main.style.setProperty('min-height', '0', 'important');
-      main.style.setProperty('max-height', 'calc(100vh - 64px)', 'important');
+    // If another full-width fixed bottom panel overlaps the navigation,
+    // move that panel directly above the navigation instead of stacking them.
+    var navRect = target.getBoundingClientRect();
+    var secondaryPanel = Array.from(document.querySelectorAll('body *')).filter(function(el) {
+      if (el === target || target.contains(el) || el.contains(target) || el.children.length > 8) return false;
+      var s = window.getComputedStyle(el);
+      var r = el.getBoundingClientRect();
+      return s.position === 'fixed' &&
+        r.width >= window.innerWidth * 0.55 &&
+        r.height >= 28 && r.height <= 120 &&
+        r.bottom >= window.innerHeight - 8 &&
+        r.top < navRect.bottom - 3 &&
+        r.top > window.innerHeight - 170;
+    }).sort(function(a,b) {
+      var ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+      return (br.width * br.height) - (ar.width * ar.height);
+    })[0] || null;
+    var secondaryHeight = 0;
+    if (secondaryPanel) {
+      secondaryPanel.setAttribute('data-pocket-signal-stacked-panel', '1');
+      secondaryPanel.style.setProperty('bottom', '64px', 'important');
+      secondaryPanel.style.setProperty('z-index', '2147483645', 'important');
+      secondaryHeight = Math.round(secondaryPanel.getBoundingClientRect().height);
     }
-    return JSON.stringify({applied:true, labels:found.length, navWidth:Math.round(target.getBoundingClientRect().width), navHeight:Math.round(target.getBoundingClientRect().height)});
+    var main = document.querySelector('.m-main-wrap.js-m-main-wrap');
+    var reservedBottom = 64 + secondaryHeight;
+    if (main) {
+      main.style.setProperty('height', 'calc(100vh - ' + reservedBottom + 'px)', 'important');
+      main.style.setProperty('min-height', '0', 'important');
+      main.style.setProperty('max-height', 'calc(100vh - ' + reservedBottom + 'px)', 'important');
+    }
+    return JSON.stringify({applied:true, labels:found.length, navWidth:Math.round(target.getBoundingClientRect().width), navHeight:Math.round(target.getBoundingClientRect().height), secondaryPanel:!!secondaryPanel, secondaryHeight:secondaryHeight});
   } catch(e) {
     return JSON.stringify({applied:false, error:String(e).slice(0,120)});
   }
