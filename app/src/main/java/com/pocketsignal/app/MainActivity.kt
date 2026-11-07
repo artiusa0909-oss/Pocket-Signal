@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -116,7 +117,7 @@ private fun SignalPanel(
     }
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.widthIn(max = 250.dp),
         color = PanelBg.copy(alpha = 0.96f),
         shape = RoundedCornerShape(9.dp),
         shadowElevation = 5.dp
