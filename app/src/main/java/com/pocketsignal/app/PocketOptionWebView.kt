@@ -71,12 +71,60 @@ private const val CHART_SNAPSHOT_SCRIPT = """
       }
       const r = c.getBoundingClientRect();
       const s = window.getComputedStyle(c);
+      let glInfo = null;
+      try {
+        const gl = c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl');
+        if (gl) {
+          const lost = gl.isContextLost();
+          let pixelStats = null;
+          if (!lost && c.width > 8 && c.height > 8) {
+            try {
+              const pixels = new Uint8Array(8 * 8 * 4);
+              const fb = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+              gl.readPixels(
+                Math.max(0, Math.floor(c.width / 2) - 4),
+                Math.max(0, Math.floor(c.height / 2) - 4),
+                8, 8, gl.RGBA, gl.UNSIGNED_BYTE, pixels
+              );
+              const colors = new Set();
+              let nonTransparent = 0;
+              let nonBlack = 0;
+              for (let i = 0; i < pixels.length; i += 4) {
+                colors.add(pixels[i] + ',' + pixels[i+1] + ',' + pixels[i+2] + ',' + pixels[i+3]);
+                if (pixels[i+3] > 0) nonTransparent++;
+                if (pixels[i] > 8 || pixels[i+1] > 8 || pixels[i+2] > 8) nonBlack++;
+              }
+              pixelStats = {
+                uniqueColors: colors.size,
+                nonTransparentPixels: nonTransparent,
+                nonBlackPixels: nonBlack,
+                framebufferBound: !!fb
+              };
+            } catch (pixelError) {
+              pixelStats = {error:String(pixelError).slice(0,80)};
+            }
+          }
+          glInfo = {
+            context: (gl instanceof WebGL2RenderingContext) ? 'webgl2' : 'webgl',
+            lost: lost,
+            drawingBuffer: gl.drawingBufferWidth + 'x' + gl.drawingBufferHeight,
+            version: String(gl.getParameter(gl.VERSION) || '').slice(0,80),
+            renderer: String(gl.getParameter(gl.RENDERER) || '').slice(0,100),
+            pixelStats: pixelStats
+          };
+        } else {
+          glInfo = {context:'no-webgl-context'};
+        }
+      } catch (glError) {
+        glInfo = {error:String(glError).slice(0,100)};
+      }
       return {
         bitmap: c.width + 'x' + c.height,
         rect: Math.round(r.width) + 'x' + Math.round(r.height),
         display: s.display,
         visibility: s.visibility,
         opacity: s.opacity,
+        gl: glInfo,
         parentChain: chain
       };
     });
