@@ -1,6 +1,10 @@
 package com.pocketsignal.app
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
@@ -13,9 +17,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -25,10 +29,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.webkit.WebView
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val ScreenBg = Color(0xFF080D13)
 private val PanelBg = Color(0xFF111B26)
@@ -51,6 +59,8 @@ fun PocketSignalScreen() {
     var platformStatus by remember { mutableStateOf("Подключение к Pocket Option…") }
     var reloadKey by remember { mutableIntStateOf(0) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    val diagnosticLog = remember { mutableStateListOf<String>() }
+    val context = LocalContext.current
 
     BackHandler(enabled = webViewRef?.canGoBack() == true) {
         webViewRef?.goBack()
@@ -95,12 +105,47 @@ fun PocketSignalScreen() {
 
             Surface(color = PanelBg, shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth()) {
-                Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.padding(end = 8.dp)
-                        .background(Warning, RoundedCornerShape(50))
-                        .height(7.dp).fillMaxWidth(0.015f))
+                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(platformStatus, color = Muted, fontSize = 10.sp, maxLines = 2)
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()) {
+                        Text("СОБЫТИЙ: ${diagnosticLog.size}/40",
+                            color = Warning, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Surface(
+                                onClick = {
+                                    val report = diagnosticLog.joinToString("\n")
+                                    if (report.isBlank()) {
+                                        Toast.makeText(context, "Журнал пока пуст", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("Pocket Signal diagnostics", report))
+                                        Toast.makeText(context, "Диагностика скопирована. Вставь её сюда в чат.", Toast.LENGTH_LONG).show()
+                                    }
+                                },
+                                color = Color(0xFF173A35),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text("СКОПИРОВАТЬ", color = Accent, fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
+                            }
+                            Surface(
+                                onClick = { diagnosticLog.clear() },
+                                color = Color(0xFF26313D),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text("ОЧИСТИТЬ", color = Muted, fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp))
+                            }
+                        }
+                    }
+                    diagnosticLog.takeLast(3).forEach { entry ->
+                        Text(entry, color = Muted, fontSize = 8.sp, maxLines = 1)
+                    }
                 }
             }
 
@@ -109,7 +154,15 @@ fun PocketSignalScreen() {
                     reloadKey = reloadKey,
                     modifier = Modifier.fillMaxSize(),
                     onWebView = { webViewRef = it },
-                    onStatus = { platformStatus = it }
+                    onStatus = { message ->
+                        platformStatus = message
+                        val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+                        val entry = "[$timestamp] $message"
+                        if (diagnosticLog.lastOrNull() != entry) {
+                            diagnosticLog.add(entry)
+                            while (diagnosticLog.size > 40) diagnosticLog.removeAt(0)
+                        }
+                    }
                 )
             }
 
