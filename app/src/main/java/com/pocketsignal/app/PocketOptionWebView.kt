@@ -188,10 +188,21 @@ private const val CHART_SNAPSHOT_SCRIPT = """
       };
     }
     const bodyChildren = Array.from(document.body ? document.body.children : [])
-      .slice(0, 8).map(layoutInfo);
+      .slice(0, 14).map(layoutInfo);
+    const portraitDummy = layoutInfo(document.querySelector('.portrait-dummy'));
+    const rootMetrics = {
+      html: layoutInfo(document.documentElement),
+      body: layoutInfo(document.body),
+      viewportMeta: (document.querySelector('meta[name="viewport"]') || {}).content || null,
+      screen: window.screen ? window.screen.width + 'x' + window.screen.height : null,
+      orientation: screen.orientation ? screen.orientation.type : null,
+      inner: window.innerWidth + 'x' + window.innerHeight,
+      pageYOffset: window.pageYOffset,
+      scrollHeight: document.scrollingElement ? document.scrollingElement.scrollHeight : null
+    };
     const chartRoot = document.querySelector('#chart-1') || document.querySelector('canvas');
     const chartAncestors = [];
-    for (let p = chartRoot, i = 0; p && i < 10; p = p.parentElement, i++) {
+    for (let p = chartRoot, i = 0; p && i < 18; p = p.parentElement, i++) {
       chartAncestors.push(layoutInfo(p));
     }
     const appRoots = Array.from(document.querySelectorAll('#app, #root, #app-root, #page, main, [id*="chart"]'))
@@ -204,8 +215,8 @@ private const val CHART_SNAPSHOT_SCRIPT = """
       viewport: window.innerWidth + 'x' + window.innerHeight,
       visualViewport: vv ? Math.round(vv.width) + 'x' + Math.round(vv.height) + '@' + vv.scale : null,
       dpr: window.devicePixelRatio || 1,
-      documentElement: box(document.documentElement),
-      body: box(document.body),
+      rootMetrics: rootMetrics,
+      portraitDummy: portraitDummy,
       chartAncestors: chartAncestors,
       appRoots: appRoots,
       bodyChildren: bodyChildren,
