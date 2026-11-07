@@ -127,8 +127,8 @@ fun PocketSignalScreen() {
         val view = webViewRef ?: return@LaunchedEffect
         while (webViewRef === view) {
             view.evaluateJavascript(MOBILE_BOTTOM_NAV_REPAIR_SCRIPT) { result ->
-                val clean = result?.removeSurrounding("\\\"", "\\\"")?.take(220) ?: "нет ответа"
-                if (clean.contains("\\"applied\\":true") && diagnosticLog.lastOrNull() != "Нижняя панель Pocket Option: $clean") {
+                val clean = result?.take(220) ?: "нет ответа"
+                if (clean.contains("applied") && diagnosticLog.lastOrNull() != "Нижняя панель Pocket Option: $clean") {
                     diagnosticLog.add("Нижняя панель Pocket Option: $clean")
                     while (diagnosticLog.size > 40) diagnosticLog.removeAt(0)
                 }
