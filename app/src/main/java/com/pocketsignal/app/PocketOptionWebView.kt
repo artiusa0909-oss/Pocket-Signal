@@ -235,6 +235,43 @@ private const val CHART_SNAPSHOT_SCRIPT = """
 """
 
 
+private const val CHART_LAYOUT_REPAIR_SCRIPT = """
+(function() {
+  try {
+    var styleId = 'pocket-signal-chart-layout-repair';
+    var css = [
+      'html { height: 100vh !important; min-height: 100vh !important; }',
+      'body { height: 100vh !important; min-height: 100vh !important; max-height: 100vh !important; overflow: hidden !important; }',
+      '.m-main-wrap.js-m-main-wrap { height: 100vh !important; min-height: 100vh !important; max-height: 100vh !important; }',
+      '.m-main-wrap__in, .main-table-wrap, .wrapper, .site-content.left-shadow, #bar-chart, .page.traderoom, .charts.single, .layout-container, .chart-item, .chart, .chart-container { height: 100% !important; min-height: 0 !important; }',
+      '.m-main-wrap__in, .main-table-wrap, .wrapper, .site-content.left-shadow, .layout-container { flex: 1 1 auto !important; min-height: 0 !important; }',
+      '.chart-item { flex: 1 1 100% !important; }'
+    ].join('\\n');
+    var style = document.getElementById(styleId);
+    if (!style) {
+      style = document.createElement('style');
+      style.id = styleId;
+      (document.head || document.documentElement).appendChild(style);
+    }
+    style.textContent = css;
+    window.dispatchEvent(new Event('resize'));
+    return JSON.stringify({
+      applied: true,
+      viewport: window.innerWidth + 'x' + window.innerHeight,
+      html: Math.round(document.documentElement.getBoundingClientRect().height),
+      body: Math.round(document.body.getBoundingClientRect().height),
+      chart: (function() {
+        var el = document.querySelector('#chart-1');
+        return el ? Math.round(el.getBoundingClientRect().height) : null;
+      })()
+    });
+  } catch (e) {
+    return JSON.stringify({applied:false,error:String(e).slice(0,120)});
+  }
+})()
+"""
+
+
 private fun captureChartSnapshot(
     view: WebView,
     label: String,
@@ -351,8 +388,11 @@ fun PocketOptionWebView(
                     }
 
                     override fun onPageFinished(view: WebView, url: String?) {
-                        reportStatus("Страница загружена. Снимаем параметры графика…")
-                        captureChartSnapshot(view, "сразу после загрузки", reportStatus)
+                        reportStatus("Страница загружена. Проверяем восстановление размеров графика…")
+                        view.evaluateJavascript(CHART_LAYOUT_REPAIR_SCRIPT) { result ->
+                            reportStatus("Проверка CSS-разметки: ${result?.take(500) ?: "нет ответа"}")
+                            captureChartSnapshot(view, "после проверки размеров", reportStatus)
+                        }
                         view.postDelayed({
                             captureChartSnapshot(view, "через 1,5 секунды", reportStatus)
                         }, 1500L)
