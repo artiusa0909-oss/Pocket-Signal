@@ -38,12 +38,16 @@ fun PocketOptionWebView(
     val context = LocalContext.current
     val currentOnStatus = rememberUpdatedState(onStatus)
     val currentOnWebView = rememberUpdatedState(onWebView)
+    val reportStatus: (String) -> Unit = { message -> currentOnStatus.value.invoke(message) }
 
     key(reloadKey) {
         val webView = remember(context, reloadKey) {
             WebView(context).apply {
                 setBackgroundColor(android.graphics.Color.rgb(8, 13, 19))
-                setLayerType(View.LAYER_TYPE_HARDWARE, null)\n                isVerticalScrollBarEnabled = false\n                isHorizontalScrollBarEnabled = false\n                overScrollMode = View.OVER_SCROLL_NEVER
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                isVerticalScrollBarEnabled = false
+                isHorizontalScrollBarEnabled = false
+                overScrollMode = View.OVER_SCROLL_NEVER
 
                 settings.apply {
                     javaScriptEnabled = true
@@ -70,13 +74,14 @@ fun PocketOptionWebView(
                 webChromeClient = object : WebChromeClient() {
                     override fun onProgressChanged(view: WebView, newProgress: Int) {
                         if (newProgress < 100) {
-                            currentOnStatus.value = "Загрузка торговой платформы: " + newProgress + "%"
+                            reportStatus("Загрузка торговой платформы: " + newProgress + "%")
                         } else {
-                            currentOnStatus.value = "Страница загружена. Проверяем отображение терминала…"
+                            reportStatus("Страница загружена. Проверяем отображение терминала…")
                         }
                     }
 
                     override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
+                        // Console text may contain page data; do not forward it to logs or UI.
                         return true
                     }
                 }
@@ -89,21 +94,25 @@ fun PocketOptionWebView(
                         val uri = request.url
                         val allowed = uri.scheme == "https" && isPocketOptionHost(uri.host)
                         if (!allowed) {
-                            currentOnStatus.value = "Заблокирован переход на " + (uri.host ?: "неизвестный адрес") + ". Проверим домен перед добавлением."
+                            reportStatus(
+                                "Заблокирован переход на " +
+                                    (uri.host ?: "неизвестный адрес") +
+                                    ". Проверим домен перед добавлением."
+                            )
                         }
                         return !allowed
                     }
 
                     override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
-                        currentOnStatus.value = "Открывается Pocket Option…"
+                        reportStatus("Открывается Pocket Option…")
                     }
 
                     override fun onPageCommitVisible(view: WebView, url: String?) {
-                        currentOnStatus.value = "Страница отображается. Ожидаем загрузку графика."
+                        reportStatus("Страница отображается. Ожидаем загрузку графика.")
                     }
 
                     override fun onPageFinished(view: WebView, url: String?) {
-                        currentOnStatus.value = "Загрузка страницы завершена. Если график пустой, нажми «Обновить»."
+                        reportStatus("Загрузка страницы завершена. Если график пустой, нажми «Обновить».")
                     }
 
                     override fun onReceivedError(
@@ -112,8 +121,11 @@ fun PocketOptionWebView(
                         error: WebResourceError
                     ) {
                         if (request.isForMainFrame) {
-                            currentOnStatus.value = "Ошибка загрузки страницы (" +
-                                error.errorCode + "). Проверь соединение и WebView."
+                            reportStatus(
+                                "Ошибка загрузки страницы (" +
+                                    error.errorCode +
+                                    "). Проверь соединение и WebView."
+                            )
                         }
                     }
 
@@ -123,8 +135,7 @@ fun PocketOptionWebView(
                         errorResponse: android.webkit.WebResourceResponse
                     ) {
                         if (request.isForMainFrame) {
-                            currentOnStatus.value = "Сайт вернул HTTP " +
-                                errorResponse.statusCode + "."
+                            reportStatus("Сайт вернул HTTP " + errorResponse.statusCode + ".")
                         }
                     }
 
@@ -134,14 +145,14 @@ fun PocketOptionWebView(
                         error: SslError
                     ) {
                         handler.cancel()
-                        currentOnStatus.value = "Соединение остановлено: ошибка SSL-сертификата."
+                        reportStatus("Соединение остановлено: ошибка SSL-сертификата.")
                     }
 
                     override fun onRenderProcessGone(
                         view: WebView,
                         detail: android.webkit.RenderProcessGoneDetail
                     ): Boolean {
-                        currentOnStatus.value = "Процесс отображения страницы остановился. Нажми «Обновить»."
+                        reportStatus("Процесс отображения страницы остановился. Нажми «Обновить».")
                         return true
                     }
                 }
@@ -151,9 +162,9 @@ fun PocketOptionWebView(
         }
 
         DisposableEffect(webView) {
-            currentOnWebView.value(webView)
+            currentOnWebView.value.invoke(webView)
             onDispose {
-                currentOnWebView.value(null)
+                currentOnWebView.value.invoke(null)
                 webView.stopLoading()
                 webView.destroy()
             }
