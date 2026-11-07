@@ -114,7 +114,7 @@ fun PocketSignalScreen() {
                 ) {
                     Surface(
                         onClick = {
-                            val report = diagnosticLog.joinToString("\\n")
+                            val report = diagnosticLog.joinToString("\n")
                             if (report.isBlank()) {
                                 Toast.makeText(context, "Журнал пока пуст", Toast.LENGTH_SHORT).show()
                             } else {
