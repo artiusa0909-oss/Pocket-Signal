@@ -89,7 +89,7 @@ fun PocketOptionWebView(
                         val uri = request.url
                         val allowed = uri.scheme == "https" && isPocketOptionHost(uri.host)
                         if (!allowed) {
-                            currentOnStatus.value = "Переход остановлен: адрес не подтверждён как Pocket Option."
+                            currentOnStatus.value = "Заблокирован переход на " + (uri.host ?: "неизвестный адрес") + ". Проверим домен перед добавлением."
                         }
                         return !allowed
                     }
