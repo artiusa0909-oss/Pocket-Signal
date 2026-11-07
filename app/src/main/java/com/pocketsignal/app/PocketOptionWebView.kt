@@ -51,10 +51,10 @@ private const val CHART_LAYOUT_REPAIR_SCRIPT = """
       style.textContent = [
         'html, body { height: 100% !important; min-height: 100% !important; }',
         'body { min-height: 100vh !important; }',
-        '.m-main-wrap, .m-main-wrap__in, .main-table-wrap, .site-content, .page.traderoom, #bar-chart { height: auto !important; min-height: 100vh !important; }',
+        '.m-main-wrap, .m-main-wrap__in, .main-table-wrap, .site-content, .layout-container, .page.traderoom, #bar-chart { height: auto !important; min-height: 100vh !important; }',
         '.charts.single, .chart-item.is-quick, .chart { height: auto !important; min-height: 320px !important; }',
         '#chart-1.chart-container { height: min(68vh, 560px) !important; min-height: 320px !important; }'
-      ].join('\\n');
+      ].join('\n');
       (document.head || document.documentElement).appendChild(style);
     }
     requestAnimationFrame(function() {
