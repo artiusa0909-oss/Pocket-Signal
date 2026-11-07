@@ -1,16 +1,21 @@
 package com.pocketsignal.app
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
 import android.net.http.SslError
+import android.os.Build
+import android.view.View
 import android.webkit.CookieManager
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
@@ -22,78 +27,138 @@ private const val POCKET_OPTION_HOME = "https://pocketoption.com/en/"
 private fun isPocketOptionHost(host: String?): Boolean =
     host == "pocketoption.com" || host?.endsWith(".pocketoption.com") == true
 
-/**
- * User-controlled Pocket Option page.
- * Native code does not read or export passwords, cookies, local storage,
- * authorization headers, or session identifiers.
- */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun PocketOptionWebView(
+    reloadKey: Int,
     modifier: Modifier = Modifier,
+    onWebView: (WebView?) -> Unit,
     onStatus: (String) -> Unit
 ) {
     val context = LocalContext.current
     val currentOnStatus = rememberUpdatedState(onStatus)
-    val webView = remember(context) {
-        WebView(context).apply {
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.loadsImagesAutomatically = true
-            settings.javaScriptCanOpenWindowsAutomatically = false
-            settings.setSupportMultipleWindows(false)
-            settings.allowFileAccess = false
-            settings.allowContentAccess = false
-            settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+    val currentOnWebView = rememberUpdatedState(onWebView)
 
-            CookieManager.getInstance().setAcceptCookie(true)
-            webChromeClient = WebChromeClient()
-            webViewClient = object : WebViewClient() {
-                override fun shouldOverrideUrlLoading(
-                    view: WebView,
-                    request: WebResourceRequest
-                ): Boolean {
-                    val uri = request.url
-                    val allowed = uri.scheme == "https" && isPocketOptionHost(uri.host)
-                    if (!allowed) currentOnStatus.value(
-                        "Переход заблокирован: адрес вне pocketoption.com"
-                    )
-                    return !allowed
+    key(reloadKey) {
+        val webView = remember(context, reloadKey) {
+            WebView(context).apply {
+                setBackgroundColor(android.graphics.Color.rgb(8, 13, 19))
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)
+
+                settings.apply {
+                    javaScriptEnabled = true
+                    domStorageEnabled = true
+                    databaseEnabled = true
+                    loadsImagesAutomatically = true
+                    javaScriptCanOpenWindowsAutomatically = true
+                    setSupportMultipleWindows(false)
+                    allowFileAccess = false
+                    allowContentAccess = false
+                    mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                    cacheMode = WebSettings.LOAD_DEFAULT
+                    mediaPlaybackRequiresUserGesture = false
+                    builtInZoomControls = false
+                    displayZoomControls = false
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        safeBrowsingEnabled = true
+                    }
                 }
 
-                override fun onPageStarted(
-                    view: WebView,
-                    url: String?,
-                    favicon: android.graphics.Bitmap?
-                ) {
-                    currentOnStatus.value("Загружается платформа Pocket Option…")
+                CookieManager.getInstance().setAcceptCookie(true)
+                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+
+                webChromeClient = object : WebChromeClient() {
+                    override fun onProgressChanged(view: WebView, newProgress: Int) {
+                        if (newProgress < 100) {
+                            currentOnStatus.value = "Загрузка торговой платформы: " + newProgress + "%"
+                        } else {
+                            currentOnStatus.value = "Страница загружена. Проверяем отображение терминала…"
+                        }
+                    }
+
+                    override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
+                        return true
+                    }
                 }
 
-                override fun onPageFinished(view: WebView, url: String?) {
-                    currentOnStatus.value(
-                        "Страница загружена. Вход выполняется непосредственно на сайте Pocket Option."
-                    )
+                webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView,
+                        request: WebResourceRequest
+                    ): Boolean {
+                        val uri = request.url
+                        val allowed = uri.scheme == "https" && isPocketOptionHost(uri.host)
+                        if (!allowed) {
+                            currentOnStatus.value = "Переход остановлен: адрес не подтверждён как Pocket Option."
+                        }
+                        return !allowed
+                    }
+
+                    override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                        currentOnStatus.value = "Открывается Pocket Option…"
+                    }
+
+                    override fun onPageCommitVisible(view: WebView, url: String?) {
+                        currentOnStatus.value = "Страница отображается. Ожидаем загрузку графика."
+                    }
+
+                    override fun onPageFinished(view: WebView, url: String?) {
+                        currentOnStatus.value = "Загрузка страницы завершена. Если график пустой, нажми «Обновить»."
+                    }
+
+                    override fun onReceivedError(
+                        view: WebView,
+                        request: WebResourceRequest,
+                        error: WebResourceError
+                    ) {
+                        if (request.isForMainFrame) {
+                            currentOnStatus.value = "Ошибка загрузки страницы (" +
+                                error.errorCode + "). Проверь соединение и WebView."
+                        }
+                    }
+
+                    override fun onReceivedHttpError(
+                        view: WebView,
+                        request: WebResourceRequest,
+                        errorResponse: android.webkit.WebResourceResponse
+                    ) {
+                        if (request.isForMainFrame) {
+                            currentOnStatus.value = "Сайт вернул HTTP " +
+                                errorResponse.statusCode + "."
+                        }
+                    }
+
+                    override fun onReceivedSslError(
+                        view: WebView,
+                        handler: SslErrorHandler,
+                        error: SslError
+                    ) {
+                        handler.cancel()
+                        currentOnStatus.value = "Соединение остановлено: ошибка SSL-сертификата."
+                    }
+
+                    override fun onRenderProcessGone(
+                        view: WebView,
+                        detail: android.webkit.RenderProcessGoneDetail
+                    ): Boolean {
+                        currentOnStatus.value = "Процесс отображения страницы остановился. Нажми «Обновить»."
+                        return true
+                    }
                 }
 
-                override fun onReceivedSslError(
-                    view: WebView,
-                    handler: SslErrorHandler,
-                    error: SslError
-                ) {
-                    handler.cancel()
-                    currentOnStatus.value("Соединение остановлено: ошибка SSL-сертификата.")
-                }
+                loadUrl(POCKET_OPTION_HOME)
             }
-            loadUrl(POCKET_OPTION_HOME)
         }
-    }
 
-    DisposableEffect(webView) {
-        onDispose {
-            webView.stopLoading()
-            webView.destroy()
+        DisposableEffect(webView) {
+            currentOnWebView.value(webView)
+            onDispose {
+                currentOnWebView.value(null)
+                webView.stopLoading()
+                webView.destroy()
+            }
         }
-    }
 
-    AndroidView(factory = { webView }, modifier = modifier.fillMaxSize())
+        AndroidView(factory = { webView }, modifier = modifier)
+    }
 }
