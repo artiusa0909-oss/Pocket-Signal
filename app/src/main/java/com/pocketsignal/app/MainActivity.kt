@@ -222,7 +222,7 @@ private fun DemoCandlestickChart(
 
         val minPrice = candles.minOf { it.low }
         val maxPrice = candles.maxOf { it.high }
-        val range = (maxPrice - minPrice).coerceAtLeast(0.0001f)
+        val range = (maxPrice - minPrice).coerceAtLeast(0.0000000001)
         val chartPadding = 8.dp.toPx()
         val chartHeight = size.height - chartPadding * 2
         val candleSlot = size.width / candles.size
