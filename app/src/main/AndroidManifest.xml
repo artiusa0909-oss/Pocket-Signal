@@ -1,23 +1,23 @@
 
-&lt;?xml version="1.0" encoding="utf-8"?&gt;
-&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    &lt;application
+    <application
         android:allowBackup="false"
         android:label="Pocket Signal"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
-        android:supportsRtl="true"&gt;
+        android:supportsRtl="true">
 
-        &lt;activity
+        <activity
             android:name=".MainActivity"
-            android:exported="true"&gt;
+            android:exported="true">
 
-            &lt;intent-filter&gt;
-                &lt;action android:name="android.intent.action.MAIN" /&gt;
-                &lt;category android:name="android.intent.category.LAUNCHER" /&gt;
-            &lt;/intent-filter&gt;
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
 
-        &lt;/activity&gt;
-    &lt;/application&gt;
+        </activity>
+    </application>
 
-&lt;/manifest&gt;
+</manifest>
