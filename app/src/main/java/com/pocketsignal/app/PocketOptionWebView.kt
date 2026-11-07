@@ -130,35 +130,66 @@ private const val CHART_LAYOUT_REPAIR_SCRIPT = """
 (function() {
   try {
     const target = document.getElementById('chart-1');
-    const viewportHeight = window.innerHeight || 0;
-    if (!target) return JSON.stringify({repair:'chart-1-not-found'});
-    if (viewportHeight < 250) return JSON.stringify({repair:'skipped-small-viewport', viewportHeight});
-    const targetRect = target.getBoundingClientRect();
-    if (targetRect.width < 160) return JSON.stringify({repair:'skipped-small-chart', width:Math.round(targetRect.width)});
+    const viewportWidth = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 0);
+    const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 0);
+    if (!target) return JSON.stringify({repair:'chart-1-not-found', viewportWidth, viewportHeight});
+    if (viewportWidth < 160 || viewportHeight < 250) return JSON.stringify({repair:'skipped-small-viewport', viewportWidth, viewportHeight});
     const desiredHeight = Math.max(280, Math.min(420, Math.round(viewportHeight * 0.58)));
+    const styleId = 'pocket-signal-chart-layout-fix';
+    let style = document.getElementById(styleId);
+    if (!style) {
+      style = document.createElement('style');
+      style.id = styleId;
+      (document.head || document.documentElement).appendChild(style);
+    }
+    style.textContent = [
+      '#chart-1{width:100vw!important;max-width:100vw!important;min-width:0!important;height:'+desiredHeight+'px!important;min-height:'+desiredHeight+'px!important;box-sizing:border-box!important;overflow:hidden!important}',
+      '#chart-1 canvas{display:block!important;width:100%!important;height:100%!important;max-width:100%!important;box-sizing:border-box!important}',
+      '.charts.single,.charts.single>.layout-container,.charts.single .chart-item.is-quick,.charts.single .chart{width:100vw!important;max-width:100vw!important;min-width:0!important;box-sizing:border-box!important}',
+      '.charts.single>.layout-container,.charts.single .chart-item.is-quick,.charts.single .chart{height:'+desiredHeight+'px!important;min-height:'+desiredHeight+'px!important}'
+    ].join('');
     const changed = [];
     let el = target;
     for (let i = 0; el && i < 5; i++, el = el.parentElement) {
       const rect = el.getBoundingClientRect();
-      if (rect.width >= 160 && rect.height < 2) {
-        el.style.setProperty('height', desiredHeight + 'px', 'important');
-        el.style.setProperty('min-height', desiredHeight + 'px', 'important');
-        el.style.setProperty('box-sizing', 'border-box', 'important');
+      const s = window.getComputedStyle(el);
+      if (Math.abs(rect.width - viewportWidth) > 2 || rect.height < 2) {
         changed.push({
-          tag: el.tagName,
-          id: (el.id || '').slice(0, 40),
-          className: (typeof el.className === 'string' ? el.className : '').slice(0, 60)
+          tag:el.tagName,
+          id:(el.id||'').slice(0,40),
+          className:(typeof el.className==='string'?el.className:'').slice(0,60),
+          before:Math.round(rect.width)+'x'+Math.round(rect.height),
+          computedWidth:s.width
         });
       }
     }
-    if (changed.length) {
-      requestAnimationFrame(function() {
-        window.dispatchEvent(new Event('resize'));
-      });
-    }
-    return JSON.stringify({repair:changed.length ? 'applied' : 'not-needed', height:desiredHeight, changed});
+    target.style.setProperty('width','100vw','important');
+    target.style.setProperty('max-width','100vw','important');
+    target.style.setProperty('height',desiredHeight+'px','important');
+    target.style.setProperty('min-height',desiredHeight+'px','important');
+    target.style.setProperty('box-sizing','border-box','important');
+    const canvasList = Array.from(target.querySelectorAll('canvas'));
+    canvasList.forEach(function(c) {
+      c.style.setProperty('width','100%','important');
+      c.style.setProperty('height','100%','important');
+      c.style.setProperty('max-width','100%','important');
+      c.style.setProperty('display','block','important');
+    });
+    requestAnimationFrame(function() {
+      window.dispatchEvent(new Event('resize'));
+      if (window.visualViewport) {
+        window.visualViewport.dispatchEvent(new Event('resize'));
+      }
+    });
+    return JSON.stringify({
+      repair:'responsive-width-height-applied',
+      viewportWidth,
+      height:desiredHeight,
+      canvasCount:canvasList.length,
+      changed
+    });
   } catch (e) {
-    return JSON.stringify({repair:'error', detail:String(e).slice(0,100)});
+    return JSON.stringify({repair:'error',detail:String(e).slice(0,120)});
   }
 })()
 """
