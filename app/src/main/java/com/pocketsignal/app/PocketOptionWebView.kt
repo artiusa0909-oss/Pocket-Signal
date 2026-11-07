@@ -246,7 +246,7 @@ private const val CHART_LAYOUT_REPAIR_SCRIPT = """
       '.m-main-wrap__in, .main-table-wrap, .wrapper, .site-content.left-shadow, #bar-chart, .page.traderoom, .charts.single, .layout-container, .chart-item, .chart, .chart-container { height: 100% !important; min-height: 0 !important; }',
       '.m-main-wrap__in, .main-table-wrap, .wrapper, .site-content.left-shadow, .layout-container { flex: 1 1 auto !important; min-height: 0 !important; }',
       '.chart-item { flex: 1 1 100% !important; }'
-    ].join('\\n');
+    ].join('\n');
     var style = document.getElementById(styleId);
     if (!style) {
       style = document.createElement('style');
@@ -257,6 +257,8 @@ private const val CHART_LAYOUT_REPAIR_SCRIPT = """
     window.dispatchEvent(new Event('resize'));
     return JSON.stringify({
       applied: true,
+      cssRuleCount: style.sheet ? style.sheet.cssRules.length : -1,
+      cssTextLength: style.textContent.length,
       viewport: window.innerWidth + 'x' + window.innerHeight,
       html: Math.round(document.documentElement.getBoundingClientRect().height),
       body: Math.round(document.body.getBoundingClientRect().height),
