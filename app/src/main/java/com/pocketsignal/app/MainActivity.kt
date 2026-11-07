@@ -1,10 +1,6 @@
 package com.pocketsignal.app
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
@@ -34,9 +30,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.webkit.WebView
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 private val ScreenBg = Color(0xFF080D13)
 private val PanelBg = Color(0xFF111B26)
@@ -58,11 +51,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun PocketSignalScreen() {
-    var reloadKey by remember { mutableIntStateOf(0) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var signalDecision by remember { mutableStateOf<SignalDecision?>(null) }
-    val diagnosticLog = remember { mutableStateListOf<String>() }
-    val context = LocalContext.current
 
     BackHandler(enabled = webViewRef?.canGoBack() == true) {
         webViewRef?.goBack()
@@ -75,104 +65,25 @@ fun PocketSignalScreen() {
             primary = Accent
         )
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(ScreenBg)
                 .windowInsetsPadding(WindowInsets.systemBars)
-                .padding(vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().height(38.dp).padding(horizontal = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                    Text("POCKET SIGNAL", color = Color.White, fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
-                    Text("MARKET MONITOR  •  M1", color = Muted, fontSize = 9.sp,
-                        letterSpacing = 1.2.sp)
-                }
-                Surface(
-                    onClick = { reloadKey++ },
-                    color = PanelBg,
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("ОБНОВИТЬ", color = Accent, fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp))
-                }
-            }
+            PocketOptionWebView(
+                reloadKey = 0,
+                modifier = Modifier.fillMaxSize(),
+                onWebView = { webViewRef = it },
+                onStatus = { _ -> }
+            )
 
-            Surface(
-                color = PanelBg,
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().height(34.dp).padding(horizontal = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Surface(
-                        onClick = {
-                            val report = diagnosticLog.joinToString("\n")
-                            if (report.isBlank()) {
-                                Toast.makeText(context, "Журнал пока пуст", Toast.LENGTH_SHORT).show()
-                            } else {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                clipboard.setPrimaryClip(ClipData.newPlainText("Pocket Signal diagnostics", report))
-                                Toast.makeText(context, "Диагностика скопирована. Вставь её сюда в чат.", Toast.LENGTH_LONG).show()
-                            }
-                        },
-                        color = Color(0xFF173A35),
-                        shape = RoundedCornerShape(6.dp)
-                    ) {
-                        Text(
-                            "СКОПИРОВАТЬ",
-                            color = Accent,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                        )
-                    }
-                }
-            }
-
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                PocketOptionWebView(
-                    reloadKey = reloadKey,
-                    modifier = Modifier.fillMaxSize(),
-                    onWebView = { webViewRef = it },
-                    onStatus = { message ->
-                        val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-                        val entry = "[$timestamp] $message"
-                        if (diagnosticLog.lastOrNull() != entry) {
-                            diagnosticLog.add(entry)
-                            while (diagnosticLog.size > 40) diagnosticLog.removeAt(0)
-                        }
-                    }
-                )
-
-                SignalPanel(
-                    decision = signalDecision,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 8.dp, end = 8.dp)
-                )
-            }
-
-            Surface(color = PanelBg, shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("АНАЛИЗ: ОЖИДАНИЕ ПРОВЕРЕННЫХ КОТИРОВОК",
-                        color = Warning, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    Text("Направление появится после проверки цены и времени рыночных данных.",
-                        color = Muted, fontSize = 9.sp)
-                }
-            }
+            SignalPanel(
+                decision = signalDecision,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 8.dp, bottom = 12.dp)
+            )
         }
     }
 }
