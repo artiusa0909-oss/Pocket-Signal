@@ -90,14 +90,44 @@ internal object PassiveNetworkProbe {
       }
       return result;
     }
+    function binaryStats(buffer) {
+      var bytes = new Uint8Array(buffer);
+      var counts = new Uint32Array(256);
+      var zeros = 0;
+      var printable = 0;
+      for (var i = 0; i < bytes.length; i++) {
+        var value = bytes[i];
+        counts[value]++;
+        if (value === 0) zeros++;
+        if ((value >= 32 && value <= 126) || value === 9 || value === 10 || value === 13) printable++;
+      }
+      var entropy = 0;
+      if (bytes.length) {
+        for (var n = 0; n < counts.length; n++) {
+          if (counts[n]) {
+            var p = counts[n] / bytes.length;
+            entropy -= p * Math.log2(p);
+          }
+        }
+      }
+      var distinct = 0;
+      for (var k = 0; k < counts.length; k++) if (counts[k]) distinct++;
+      return {
+        bytes: bytes.length,
+        distinctByteValues: distinct,
+        zeroBytePercent: bytes.length ? Math.round(zeros * 1000 / bytes.length) / 10 : 0,
+        printableAsciiPercent: bytes.length ? Math.round(printable * 1000 / bytes.length) / 10 : 0,
+        entropyBitsPerByte: Math.round(entropy * 100) / 100
+      };
+    }
     if (data instanceof ArrayBuffer) {
-      return { type: 'binary-array-buffer', bytes: data.byteLength };
+      return Object.assign({ type: 'binary-array-buffer' }, binaryStats(data));
     }
     if (ArrayBuffer.isView(data)) {
-      return { type: 'binary-view', bytes: data.byteLength };
+      return Object.assign({ type: 'binary-view' }, binaryStats(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)));
     }
     if (typeof Blob !== 'undefined' && data instanceof Blob) {
-      return { type: 'binary-blob', bytes: data.size };
+      return { type: 'binary-blob', bytes: data.size, note: 'content not read' };
     }
     if (data && typeof data === 'object') {
       return { type: 'object', structure: shape(data, 0) };
