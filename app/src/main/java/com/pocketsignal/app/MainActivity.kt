@@ -43,6 +43,8 @@ private val PanelBg = Color(0xFF111B26)
 private val Accent = Color(0xFF20D69A)
 private val Muted = Color(0xFF91A0B1)
 private val Warning = Color(0xFFFFC266)
+private val SignalUp = Color(0xFF20D69A)
+private val SignalDown = Color(0xFFFF647C)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,6 +60,7 @@ class MainActivity : ComponentActivity() {
 fun PocketSignalScreen() {
     var reloadKey by remember { mutableIntStateOf(0) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var signalDecision by remember { mutableStateOf<SignalDecision?>(null) }
     val diagnosticLog = remember { mutableStateListOf<String>() }
     val context = LocalContext.current
 
@@ -151,18 +154,87 @@ fun PocketSignalScreen() {
                         }
                     }
                 )
+
+                SignalPanel(
+                    decision = signalDecision,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 8.dp, end = 8.dp)
+                )
             }
 
             Surface(color = PanelBg, shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("КОТИРОВКИ: НЕ ПРОВЕРЕНЫ  •  СИГНАЛЫ: ВЫКЛЮЧЕНЫ",
+                    Text("АНАЛИЗ: ОЖИДАНИЕ ПРОВЕРЕННЫХ КОТИРОВОК",
                         color = Warning, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    Text("Вход выполняется на сайте. Не передавай пароли и данные сессии.",
+                    Text("Направление появится после проверки цены и времени рыночных данных.",
                         color = Muted, fontSize = 9.sp)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SignalPanel(
+    decision: SignalDecision?,
+    modifier: Modifier = Modifier
+) {
+    val hasSignal = decision?.ready == true && decision.direction != null
+    val directionColor = when (decision?.direction) {
+        SignalDirection.CALL -> SignalUp
+        SignalDirection.PUT -> SignalDown
+        null -> Muted
+    }
+    val status = when {
+        hasSignal -> "СИГНАЛ ПОДТВЕРЖДЁН"
+        decision == null -> "СБОР ДАННЫХ"
+        else -> "НЕТ УВЕРЕННОГО СИГНАЛА"
+    }
+    val direction = when {
+        !hasSignal -> "—"
+        decision?.direction == SignalDirection.CALL -> "↑ ВВЕРХ"
+        else -> "↓ ВНИЗ"
+    }
+    val detail = when {
+        hasSignal -> decision?.reasons?.take(2)?.joinToString(" · ") ?: "Технические факторы совпали"
+        decision == null -> "Ожидаем проверенные котировки"
+        else -> decision.message
+    }
+
+    Surface(
+        modifier = modifier,
+        color = PanelBg.copy(alpha = 0.96f),
+        shape = RoundedCornerShape(9.dp),
+        shadowElevation = 5.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("АНАЛИЗ M1", color = Color.White, fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+                Text(status, color = if (hasSignal) directionColor else Warning,
+                    fontSize = 7.sp, fontWeight = FontWeight.Bold)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(direction, color = directionColor, fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold)
+                Text(if (hasSignal) "${decision?.confidence}%" else "—",
+                    color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            }
+            Text(detail, color = Muted, fontSize = 8.sp, maxLines = 1)
         }
     }
 }
