@@ -1,10 +1,7 @@
 package com.pocketsignal.app
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.os.Bundle
-import android.widget.Toast
+import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -12,22 +9,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import android.webkit.WebView
 
 private val ScreenBg = Color(0xFF080D13)
 private val PanelBg = Color(0xFF111B26)
@@ -44,7 +32,7 @@ private const val MOBILE_BOTTOM_NAV_REPAIR_SCRIPT = """
       /^(tournaments|tournam\.\.\.|турниры)$/i,
       /^(pending trades|pending tr\.\.\.|отложенные сделки)$/i
     ];
-    function norm(s) { return (s || '').replace(/\s+/g, ' ').trim(); }
+    function norm(s) { return (s || '').replace(/\\s+/g, ' ').trim(); }
     var nodes = Array.from(document.querySelectorAll('body *')).filter(function(el) {
       if (el.children.length > 3) return false;
       var t = norm(el.innerText || el.textContent);
@@ -128,8 +116,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun PocketSignalScreen() {
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    // Diagnostics remain in memory for troubleshooting; they are not rendered in the UI.
     val diagnosticLog = remember { mutableStateListOf<String>() }
-    val context = LocalContext.current
 
     BackHandler(enabled = webViewRef?.canGoBack() == true) {
         webViewRef?.goBack()
@@ -139,8 +127,8 @@ fun PocketSignalScreen() {
         val view = webViewRef ?: return@LaunchedEffect
         while (webViewRef === view) {
             view.evaluateJavascript(MOBILE_BOTTOM_NAV_REPAIR_SCRIPT) { result ->
-                val clean = result?.removeSurrounding("\"", "\"")?.take(220) ?: "нет ответа"
-                if (clean.contains("\"applied\":true") && diagnosticLog.lastOrNull() != "Нижняя панель Pocket Option: $clean") {
+                val clean = result?.removeSurrounding("\\\"", "\\\"")?.take(220) ?: "нет ответа"
+                if (clean.contains("\\"applied\\":true") && diagnosticLog.lastOrNull() != "Нижняя панель Pocket Option: $clean") {
                     diagnosticLog.add("Нижняя панель Pocket Option: $clean")
                     while (diagnosticLog.size > 40) diagnosticLog.removeAt(0)
                 }
@@ -176,30 +164,6 @@ fun PocketSignalScreen() {
                     }
                 }
             )
-
-            Surface(
-                onClick = {
-                    val report = diagnosticLog.joinToString("\n")
-                    if (report.isBlank()) {
-                        Toast.makeText(context, "Журнал пока пуст", Toast.LENGTH_SHORT).show()
-                    } else {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("Pocket Signal diagnostics", report))
-                        Toast.makeText(context, "Диагностика скопирована. Вставь её сюда в чат.", Toast.LENGTH_LONG).show()
-                    }
-                },
-                color = Color(0xCC111B26),
-                contentColor = Accent,
-                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
-            ) {
-                Text(
-                    "КОПИРОВАТЬ",
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.3.sp
-                )
-            }
         }
     }
 }
