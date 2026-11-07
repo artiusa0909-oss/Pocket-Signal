@@ -153,6 +153,19 @@ private const val CHART_SNAPSHOT_SCRIPT = """
         nested: nested
       };
     });
+    const videos = Array.from(document.querySelectorAll('video')).slice(0, 6).map(function(v) {
+      const r = v.getBoundingClientRect();
+      let sourceHost = '';
+      try { sourceHost = v.currentSrc ? new URL(v.currentSrc, location.href).host : ''; } catch (_) {}
+      return {
+        sourceHost: sourceHost,
+        rect: Math.round(r.width) + 'x' + Math.round(r.height),
+        videoSize: v.videoWidth + 'x' + v.videoHeight,
+        readyState: v.readyState,
+        networkState: v.networkState,
+        paused: v.paused
+      };
+    });
     const vv = window.visualViewport;
     const gl = !!(window.WebGLRenderingContext || window.WebGL2RenderingContext);
     return JSON.stringify({
@@ -167,6 +180,8 @@ private const val CHART_SNAPSHOT_SCRIPT = """
       canvasInfo: canvases,
       iframes: document.querySelectorAll('iframe').length,
       frameInfo: frames,
+      videos: document.querySelectorAll('video').length,
+      videoInfo: videos,
       webglApi: gl
     });
   } catch (e) {
