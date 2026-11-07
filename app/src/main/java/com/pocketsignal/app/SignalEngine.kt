@@ -19,7 +19,7 @@ class SignalEngine(
         }.sortedBy { it.timestampMillis }.distinctBy { it.timestampMillis }
 
         if (candles.size < minimumCandles) {
-            return noSignal("Недостаточно свечей: требуется минимум $minimumCandles, получено \${candles.size}.")
+            return noSignal("Недостаточно свечей: требуется минимум $minimumCandles, получено ${candles.size}.")
         }
 
         val closes = candles.map { it.close }
