@@ -27,6 +27,61 @@ private const val POCKET_OPTION_HOME = "https://pocketoption.com/en/"
 private fun isPocketOptionHost(host: String?): Boolean =
     host == "pocketoption.com" || host?.endsWith(".pocketoption.com") == true
 
+private fun safeDiagnosticText(raw: String, limit: Int = 180): String {
+    val withoutUrls = raw.replace(Regex("https?://[^\\s\\"'<>]+")) { match ->
+        runCatching {
+            val host = android.net.Uri.parse(match.value).host
+            if (host.isNullOrBlank()) "[url]" else "https://$host"
+        }.getOrDefault("[url]")
+    }
+    return withoutUrls
+        .replace(Regex("(?i)(token|authorization|cookie|session|password|api[_-]?key)(\\s*[:=]\\s*)[^\\s,;]+"), "$1$2[redacted]")
+        .take(limit)
+}
+
+private const val CHART_SNAPSHOT_SCRIPT = """
+(function() {
+  try {
+    const canvases = Array.from(document.querySelectorAll('canvas')).slice(0, 6).map(function(c) {
+      const r = c.getBoundingClientRect();
+      const s = window.getComputedStyle(c);
+      return {
+        bitmap: c.width + 'x' + c.height,
+        rect: Math.round(r.width) + 'x' + Math.round(r.height),
+        display: s.display,
+        visibility: s.visibility,
+        opacity: s.opacity
+      };
+    });
+    const gl = !!(window.WebGLRenderingContext || window.WebGL2RenderingContext);
+    return JSON.stringify({
+      ready: document.readyState,
+      hidden: document.hidden,
+      viewport: window.innerWidth + 'x' + window.innerHeight,
+      dpr: window.devicePixelRatio || 1,
+      body: document.body ? Math.round(document.body.getBoundingClientRect().height) : 0,
+      canvases: document.querySelectorAll('canvas').length,
+      canvasInfo: canvases,
+      iframes: document.querySelectorAll('iframe').length,
+      webglApi: gl
+    });
+  } catch (e) {
+    return JSON.stringify({snapshotError: String(e).slice(0, 100)});
+  }
+})()
+"""
+
+private fun captureChartSnapshot(
+    view: WebView,
+    label: String,
+    reportStatus: (String) -> Unit
+) {
+    view.evaluateJavascript(CHART_SNAPSHOT_SCRIPT) { result ->
+        val safeResult = result?.take(1100) ?: "нет ответа"
+        reportStatus("График $label: $safeResult")
+    }
+}
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun PocketOptionWebView(
@@ -82,8 +137,11 @@ fun PocketOptionWebView(
 
                     override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
                         if (message.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR) {
-                            val source = message.sourceId()?.substringAfterLast('/') ?: "скрипт"
-                            reportStatus("Ошибка JavaScript: $source, строка ${message.lineNumber()}.")
+                            val sourceHost = runCatching {
+                                android.net.Uri.parse(message.sourceId()).host
+                            }.getOrNull() ?: "скрипт"
+                            val detail = safeDiagnosticText(message.message())
+                            reportStatus("JavaScript ERROR [$sourceHost:\${message.lineNumber()}]: $detail")
                         }
                         return true
                     }
@@ -125,13 +183,14 @@ fun PocketOptionWebView(
                     }
 
                     override fun onPageFinished(view: WebView, url: String?) {
-                        reportStatus("Страница загружена. Проверяем элементы графика…")
-                        view.evaluateJavascript(
-                            "(function(){return JSON.stringify({ready:document.readyState,title:document.title,iframes:document.getElementsByTagName('iframe').length,canvas:document.getElementsByTagName('canvas').length,svg:document.getElementsByTagName('svg').length,body:!!document.body,bodyHeight:document.body?document.body.scrollHeight:0});})()"
-                        ) { result ->
-                            val safeResult = result?.take(240) ?: "нет ответа"
-                            reportStatus("Диагностика страницы: $safeResult")
-                        }
+                        reportStatus("Страница загружена. Снимаем параметры графика…")
+                        captureChartSnapshot(view, "сразу после загрузки", reportStatus)
+                        view.postDelayed({
+                            captureChartSnapshot(view, "через 1,5 секунды", reportStatus)
+                        }, 1500L)
+                        view.postDelayed({
+                            captureChartSnapshot(view, "через 4 секунды", reportStatus)
+                        }, 4000L)
                     }
 
                     override fun onReceivedError(
