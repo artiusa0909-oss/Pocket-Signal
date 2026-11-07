@@ -78,6 +78,69 @@ internal object PassiveNetworkProbe {
     return { type: typeof value };
   }
 
+  // Classify binary framing without exporting bytes or attempting to decode
+  // potentially sensitive account/session payloads.
+  function binaryProfile(data) {
+    var bytes;
+    if (data instanceof ArrayBuffer) {
+      bytes = new Uint8Array(data);
+    } else if (ArrayBuffer.isView(data)) {
+      bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    } else {
+      return { format: 'blob-or-unsupported-binary' };
+    }
+
+    var length = bytes.byteLength;
+    var sampleLength = Math.min(length, 2048);
+    if (!sampleLength) return { format: 'empty-binary', bytes: length };
+
+    var counts = new Uint32Array(256);
+    var printable = 0;
+    for (var i = 0; i < sampleLength; i++) {
+      var value = bytes[i];
+      counts[value]++;
+      if ((value >= 32 && value <= 126) || value === 9 || value === 10 || value === 13) {
+        printable++;
+      }
+    }
+    var entropy = 0;
+    for (var j = 0; j < counts.length; j++) {
+      if (counts[j]) {
+        var probability = counts[j] / sampleLength;
+        entropy -= probability * Math.log2(probability);
+      }
+    }
+
+    var b0 = bytes[0], b1 = sampleLength > 1 ? bytes[1] : 0;
+    var format = 'opaque-binary';
+    if (b0 === 0x1f && b1 === 0x8b) {
+      format = 'gzip';
+    } else if (b0 === 0x50 && b1 === 0x4b) {
+      format = 'zip-container';
+    } else if (b0 === 0x89 && b1 === 0x50) {
+      format = 'png';
+    } else if (b0 === 0xff && b1 === 0xd8) {
+      format = 'jpeg';
+    } else if (sampleLength > 2 && (b0 & 0x0f) === 8 &&
+               (((b0 << 8) | b1) % 31) === 0) {
+      format = 'zlib';
+    } else if (printable / sampleLength > 0.92) {
+      format = 'mostly-text';
+    } else if (entropy > 7.5) {
+      format = 'high-entropy-binary';
+    } else if (entropy < 4.0) {
+      format = 'low-entropy-structured-binary';
+    }
+
+    return {
+      format: format,
+      bytes: length,
+      sampledBytes: sampleLength,
+      printableRatio: Math.round(printable / sampleLength * 100) / 100,
+      entropyBitsPerByte: Math.round(entropy * 100) / 100
+    };
+  }
+
   function describe(data) {
     if (typeof data === 'string') {
       var result = { type: 'text', length: data.length };
@@ -91,10 +154,18 @@ internal object PassiveNetworkProbe {
       return result;
     }
     if (data instanceof ArrayBuffer) {
-      return { type: 'binary-array-buffer', bytes: data.byteLength };
+      return {
+        type: 'binary-array-buffer',
+        bytes: data.byteLength,
+        profile: binaryProfile(data)
+      };
     }
     if (ArrayBuffer.isView(data)) {
-      return { type: 'binary-view', bytes: data.byteLength };
+      return {
+        type: 'binary-view',
+        bytes: data.byteLength,
+        profile: binaryProfile(data)
+      };
     }
     if (typeof Blob !== 'undefined' && data instanceof Blob) {
       return { type: 'binary-blob', bytes: data.size };
