@@ -207,6 +207,39 @@ private const val CHART_SNAPSHOT_SCRIPT = """
     }
     const appRoots = Array.from(document.querySelectorAll('#app, #root, #app-root, #page, main, [id*="chart"]'))
       .slice(0, 16).map(layoutInfo);
+    // Read-only discovery of the Pocket Option side navigation/panels.
+    // Capture labels and geometry only; never collect account or trade values.
+    const sidePanelCandidates = Array.from(document.querySelectorAll('body *'))
+      .filter(function(el) {
+        if (el.children.length > 8) return false;
+        const label = (el.innerText || el.textContent || '').trim();
+        return label.length > 0 && label.length < 90 &&
+          /(deals|social trading|сделки|социальная торговля)/i.test(label);
+      })
+      .slice(0, 24)
+      .map(function(el) {
+        const r = el.getBoundingClientRect();
+        const s = getComputedStyle(el);
+        const parent = el.parentElement;
+        const pr = parent ? parent.getBoundingClientRect() : null;
+        return {
+          tag: el.tagName,
+          id: (el.id || '').slice(0, 60),
+          className: (typeof el.className === 'string' ? el.className : '').slice(0, 100),
+          label: (el.innerText || el.textContent || '').trim().slice(0, 70),
+          rect: Math.round(r.width) + 'x' + Math.round(r.height),
+          x: Math.round(r.left),
+          y: Math.round(r.top),
+          position: s.position,
+          display: s.display,
+          parent: parent ? {
+            tag: parent.tagName,
+            id: (parent.id || '').slice(0, 60),
+            className: (typeof parent.className === 'string' ? parent.className : '').slice(0, 100),
+            rect: pr ? Math.round(pr.width) + 'x' + Math.round(pr.height) : null
+          } : null
+        };
+      });
     const vv = window.visualViewport;
     const gl = !!(window.WebGLRenderingContext || window.WebGL2RenderingContext);
     return JSON.stringify({
@@ -219,6 +252,7 @@ private const val CHART_SNAPSHOT_SCRIPT = """
       portraitDummy: portraitDummy,
       chartAncestors: chartAncestors,
       appRoots: appRoots,
+      sidePanelCandidates: sidePanelCandidates,
       bodyChildren: bodyChildren,
       canvases: document.querySelectorAll('canvas').length,
       canvasInfo: canvases,
