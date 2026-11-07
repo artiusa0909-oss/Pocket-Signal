@@ -41,7 +41,9 @@ object SecureApiKeyStore {
                 getOrCreateSecretKey(),
                 GCMParameterSpec(128, Base64.decode(ivValue, Base64.NO_WRAP))
             )
-            String(Base64.decode(encryptedValue, Base64.NO_WRAP).let(cipher::doFinal), Charsets.UTF_8)
+            val encryptedBytes = Base64.decode(encryptedValue, Base64.NO_WRAP)
+            val plainBytes = cipher.doFinal(encryptedBytes)
+            String(plainBytes, Charsets.UTF_8)
         }.getOrNull()
     }
 
