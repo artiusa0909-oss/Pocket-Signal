@@ -5,9 +5,10 @@
 
     <application
         android:allowBackup="false"
-        android:label="Pocket Signal"
+        android:label="Pocket Option Signal"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
-        android:supportsRtl="true">
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="false">
 
         <activity
             android:name=".MainActivity"
