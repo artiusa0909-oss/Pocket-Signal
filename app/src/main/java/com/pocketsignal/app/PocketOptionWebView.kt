@@ -269,6 +269,51 @@ private const val CHART_SNAPSHOT_SCRIPT = """
 """
 
 
+// Targeted chart sizing recovery. Unlike the previous broad CSS patch, this
+// touches only Pocket Option's chart root and its immediate chart wrappers.
+private const val CHART_LAYOUT_REPAIR_SCRIPT = """
+(function() {
+  try {
+    const target = document.getElementById('chart-1');
+    const viewportWidth = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 0);
+    const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 0);
+    if (!target) return JSON.stringify({repair:'chart-1-not-found', viewportWidth, viewportHeight});
+    if (viewportWidth < 160 || viewportHeight < 250) return JSON.stringify({repair:'skipped-small-viewport', viewportWidth, viewportHeight});
+    const desiredHeight = Math.max(280, Math.min(420, Math.round(viewportHeight * 0.58)));
+    const styleId = 'pocket-signal-chart-layout-fix';
+    let style = document.getElementById(styleId);
+    if (!style) {
+      style = document.createElement('style');
+      style.id = styleId;
+      (document.head || document.documentElement).appendChild(style);
+    }
+    style.textContent = [
+      '#chart-1{width:100%!important;max-width:100%!important;min-width:0!important;height:'+desiredHeight+'px!important;min-height:'+desiredHeight+'px!important;box-sizing:border-box!important;overflow:hidden!important}',
+      '#chart-1 canvas{display:block!important;width:100%!important;height:100%!important;max-width:100%!important;box-sizing:border-box!important}',
+      '.charts.single,.charts.single>.layout-container,.charts.single .chart-item.is-quick,.charts.single .chart{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}',
+      '.charts.single>.layout-container,.charts.single .chart-item.is-quick,.charts.single .chart{height:'+desiredHeight+'px!important;min-height:'+desiredHeight+'px!important}'
+    ].join('');
+    target.style.setProperty('width','100%','important');
+    target.style.setProperty('max-width','100%','important');
+    target.style.setProperty('height',desiredHeight+'px','important');
+    target.style.setProperty('min-height',desiredHeight+'px','important');
+    target.style.setProperty('box-sizing','border-box','important');
+    const canvases = Array.from(target.querySelectorAll('canvas'));
+    canvases.forEach(function(c) {
+      c.style.setProperty('width','100%','important');
+      c.style.setProperty('height','100%','important');
+      c.style.setProperty('max-width','100%','important');
+      c.style.setProperty('display','block','important');
+    });
+    requestAnimationFrame(function() { window.dispatchEvent(new Event('resize')); });
+    return JSON.stringify({repair:'targeted-chart-size-applied',height:desiredHeight,canvases:canvases.length});
+  } catch(e) {
+    return JSON.stringify({repair:'error',detail:String(e).slice(0,120)});
+  }
+})()
+"""
+
+
 private fun captureChartSnapshot(
     view: WebView,
     label: String,
@@ -385,8 +430,11 @@ fun PocketOptionWebView(
                     }
 
                     override fun onPageFinished(view: WebView, url: String?) {
-                        reportStatus("Страница загружена. Не вмешиваемся в CSS сайта; проверяем исходную разметку графика…")
-                        captureChartSnapshot(view, "после загрузки", reportStatus)
+                        reportStatus("Страница загружена. Восстанавливаем только размеры области графика…")
+                        view.evaluateJavascript(CHART_LAYOUT_REPAIR_SCRIPT) { repairResult ->
+                            reportStatus("Коррекция графика: ${repairResult?.take(240) ?: "нет ответа"}")
+                            captureChartSnapshot(view, "после коррекции", reportStatus)
+                        }
                         view.postDelayed({
                             captureChartSnapshot(view, "через 1,5 секунды", reportStatus)
                         }, 1500L)
