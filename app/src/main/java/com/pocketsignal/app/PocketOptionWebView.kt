@@ -254,14 +254,54 @@ private const val CHART_LAYOUT_REPAIR_SCRIPT = """
       (document.head || document.documentElement).appendChild(style);
     }
     style.textContent = css;
+
+    // Apply critical dimensions as inline !important styles so late site CSS
+    // cannot override the repair stylesheet.
+    var viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 0);
+    var root = document.documentElement;
+    var body = document.body;
+    function setImportant(el, property, value) {
+      if (el) el.style.setProperty(property, value, 'important');
+    }
+    setImportant(root, 'height', viewportHeight + 'px');
+    setImportant(root, 'min-height', viewportHeight + 'px');
+    setImportant(body, 'height', viewportHeight + 'px');
+    setImportant(body, 'min-height', viewportHeight + 'px');
+    setImportant(body, 'max-height', viewportHeight + 'px');
+    setImportant(body, 'overflow', 'hidden');
+    var main = document.querySelector('.m-main-wrap.js-m-main-wrap');
+    setImportant(main, 'height', viewportHeight + 'px');
+    setImportant(main, 'min-height', viewportHeight + 'px');
+    setImportant(main, 'max-height', viewportHeight + 'px');
+    var chain = [
+      '.m-main-wrap__in', '.main-table-wrap', '.wrapper',
+      '.site-content.left-shadow', '#bar-chart', '.page.traderoom',
+      '.charts.single', '.layout-container', '.chart-item',
+      '.chart', '.chart-container'
+    ];
+    var inlineTargets = 0;
+    chain.forEach(function(selector) {
+      document.querySelectorAll(selector).forEach(function(el) {
+        setImportant(el, 'height', '100%');
+        setImportant(el, 'min-height', '0px');
+        inlineTargets++;
+      });
+    });
+    document.querySelectorAll('.m-main-wrap__in, .main-table-wrap, .wrapper, .site-content.left-shadow, .layout-container')
+      .forEach(function(el) { setImportant(el, 'flex', '1 1 auto'); });
+    document.querySelectorAll('.chart-item').forEach(function(el) { setImportant(el, 'flex', '1 1 100%'); });
     window.dispatchEvent(new Event('resize'));
     return JSON.stringify({
       applied: true,
       cssRuleCount: style.sheet ? style.sheet.cssRules.length : -1,
       cssTextLength: style.textContent.length,
+      inlineTargets: inlineTargets,
       viewport: window.innerWidth + 'x' + window.innerHeight,
-      html: Math.round(document.documentElement.getBoundingClientRect().height),
-      body: Math.round(document.body.getBoundingClientRect().height),
+      html: Math.round(root.getBoundingClientRect().height),
+      htmlCss: getComputedStyle(root).height,
+      body: Math.round(body.getBoundingClientRect().height),
+      bodyCss: getComputedStyle(body).height,
+      main: main ? Math.round(main.getBoundingClientRect().height) : null,
       chart: (function() {
         var el = document.querySelector('#chart-1');
         return el ? Math.round(el.getBoundingClientRect().height) : null;
