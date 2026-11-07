@@ -162,7 +162,6 @@ internal object PassiveNetworkProbe {
         this.__psProbeUrl = url;
         return nativeOpen.apply(this, arguments);
       };
-      NativeXHR.prototype.addEventListener.call;
       var nativeSend = NativeXHR.prototype.send;
       NativeXHR.prototype.send = function () {
         this.addEventListener('load', function () {
