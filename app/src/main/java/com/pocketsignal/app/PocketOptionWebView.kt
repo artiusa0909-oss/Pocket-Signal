@@ -42,7 +42,33 @@ private fun safeDiagnosticText(raw: String, limit: Int = 180): String {
 private const val CHART_SNAPSHOT_SCRIPT = """
 (function() {
   try {
+    function box(el) {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const s = window.getComputedStyle(el);
+      return {
+        rect: Math.round(r.width) + 'x' + Math.round(r.height),
+        client: el.clientWidth + 'x' + el.clientHeight,
+        scroll: el.scrollWidth + 'x' + el.scrollHeight,
+        cssHeight: s.height,
+        display: s.display,
+        visibility: s.visibility,
+        position: s.position,
+        overflow: s.overflow
+      };
+    }
     const canvases = Array.from(document.querySelectorAll('canvas')).slice(0, 6).map(function(c) {
+      const chain = [];
+      let p = c.parentElement;
+      for (let i = 0; p && i < 4; i++, p = p.parentElement) {
+        const r = p.getBoundingClientRect();
+        chain.push({
+          tag: p.tagName,
+          id: (p.id || '').slice(0, 50),
+          className: (typeof p.className === 'string' ? p.className : '').slice(0, 80),
+          rect: Math.round(r.width) + 'x' + Math.round(r.height)
+        });
+      }
       const r = c.getBoundingClientRect();
       const s = window.getComputedStyle(c);
       return {
@@ -50,23 +76,51 @@ private const val CHART_SNAPSHOT_SCRIPT = """
         rect: Math.round(r.width) + 'x' + Math.round(r.height),
         display: s.display,
         visibility: s.visibility,
-        opacity: s.opacity
+        opacity: s.opacity,
+        parentChain: chain
       };
     });
+    const frames = Array.from(document.querySelectorAll('iframe')).slice(0, 8).map(function(f) {
+      const r = f.getBoundingClientRect();
+      const s = window.getComputedStyle(f);
+      let nested = null;
+      try {
+        const d = f.contentDocument;
+        if (d) nested = {
+          ready: d.readyState,
+          body: d.body ? box(d.body) : null,
+          canvases: d.querySelectorAll('canvas').length
+        };
+      } catch (_) {}
+      let host = '';
+      try { host = f.src ? new URL(f.src, location.href).host : ''; } catch (_) {}
+      return {
+        host: host,
+        rect: Math.round(r.width) + 'x' + Math.round(r.height),
+        display: s.display,
+        visibility: s.visibility,
+        opacity: s.opacity,
+        nested: nested
+      };
+    });
+    const vv = window.visualViewport;
     const gl = !!(window.WebGLRenderingContext || window.WebGL2RenderingContext);
     return JSON.stringify({
       ready: document.readyState,
       hidden: document.hidden,
       viewport: window.innerWidth + 'x' + window.innerHeight,
+      visualViewport: vv ? Math.round(vv.width) + 'x' + Math.round(vv.height) + '@' + vv.scale : null,
       dpr: window.devicePixelRatio || 1,
-      body: document.body ? Math.round(document.body.getBoundingClientRect().height) : 0,
+      documentElement: box(document.documentElement),
+      body: box(document.body),
       canvases: document.querySelectorAll('canvas').length,
       canvasInfo: canvases,
       iframes: document.querySelectorAll('iframe').length,
+      frameInfo: frames,
       webglApi: gl
     });
   } catch (e) {
-    return JSON.stringify({snapshotError: String(e).slice(0, 100)});
+    return JSON.stringify({snapshotError: String(e).slice(0, 120)});
   }
 })()
 """
@@ -77,8 +131,8 @@ private fun captureChartSnapshot(
     reportStatus: (String) -> Unit
 ) {
     view.evaluateJavascript(CHART_SNAPSHOT_SCRIPT) { result ->
-        val safeResult = result?.take(1100) ?: "нет ответа"
-        reportStatus("График $label: $safeResult")
+        val safeResult = result?.take(3200) ?: "нет ответа"
+        reportStatus("График $label (WebView ${view.width}x${view.height}): $safeResult")
     }
 }
 
