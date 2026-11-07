@@ -188,10 +188,10 @@ private const val CHART_SNAPSHOT_SCRIPT = """
       };
     }
     const bodyChildren = Array.from(document.body ? document.body.children : [])
-      .slice(0, 16).map(layoutInfo);
+      .slice(0, 8).map(layoutInfo);
     const chartRoot = document.querySelector('#chart-1') || document.querySelector('canvas');
     const chartAncestors = [];
-    for (let p = chartRoot, i = 0; p && i < 12; p = p.parentElement, i++) {
+    for (let p = chartRoot, i = 0; p && i < 10; p = p.parentElement, i++) {
       chartAncestors.push(layoutInfo(p));
     }
     const appRoots = Array.from(document.querySelectorAll('#app, #root, #app-root, #page, main, [id*="chart"]'))
@@ -206,9 +206,9 @@ private const val CHART_SNAPSHOT_SCRIPT = """
       dpr: window.devicePixelRatio || 1,
       documentElement: box(document.documentElement),
       body: box(document.body),
-      bodyChildren: bodyChildren,
-      appRoots: appRoots,
       chartAncestors: chartAncestors,
+      appRoots: appRoots,
+      bodyChildren: bodyChildren,
       canvases: document.querySelectorAll('canvas').length,
       canvasInfo: canvases,
       iframes: document.querySelectorAll('iframe').length,
@@ -231,7 +231,7 @@ private fun captureChartSnapshot(
 ) {
     // Read-only snapshot: do not inject CSS, resize chart nodes, or dispatch resize events.
     view.evaluateJavascript(CHART_SNAPSHOT_SCRIPT) { result ->
-        val safeResult = result?.take(3200) ?: "нет ответа"
+        val safeResult = result?.take(6000) ?: "нет ответа"
         reportStatus("График $label (WebView ${view.width}x${view.height}): $safeResult")
     }
 }
