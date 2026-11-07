@@ -32,40 +32,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class DemoCandle(
-    val open: Float,
-    val high: Float,
-    val low: Float,
-    val close: Float
-)
-
-private val demoCandles = listOf(
-    DemoCandle(1.0820f, 1.0830f, 1.0815f, 1.0827f),
-    DemoCandle(1.0827f, 1.0832f, 1.0821f, 1.0823f),
-    DemoCandle(1.0823f, 1.0828f, 1.0818f, 1.0820f),
-    DemoCandle(1.0820f, 1.0825f, 1.0812f, 1.0815f),
-    DemoCandle(1.0815f, 1.0822f, 1.0810f, 1.0820f),
-    DemoCandle(1.0820f, 1.0831f, 1.0818f, 1.0828f),
-    DemoCandle(1.0828f, 1.0835f, 1.0824f, 1.0832f),
-    DemoCandle(1.0832f, 1.0837f, 1.0826f, 1.0829f),
-    DemoCandle(1.0829f, 1.0833f, 1.0820f, 1.0822f),
-    DemoCandle(1.0822f, 1.0827f, 1.0817f, 1.0825f),
-    DemoCandle(1.0825f, 1.0834f, 1.0823f, 1.0831f),
-    DemoCandle(1.0831f, 1.0838f, 1.0828f, 1.0836f),
-    DemoCandle(1.0836f, 1.0840f, 1.0829f, 1.0830f),
-    DemoCandle(1.0830f, 1.0834f, 1.0822f, 1.0825f),
-    DemoCandle(1.0825f, 1.0830f, 1.0819f, 1.0821f),
-    DemoCandle(1.0821f, 1.0828f, 1.0818f, 1.0826f),
-    DemoCandle(1.0826f, 1.0836f, 1.0824f, 1.0834f),
-    DemoCandle(1.0834f, 1.0841f, 1.0830f, 1.0838f),
-    DemoCandle(1.0838f, 1.0842f, 1.0831f, 1.0833f),
-    DemoCandle(1.0833f, 1.0837f, 1.0827f, 1.0830f),
-    DemoCandle(1.0830f, 1.0839f, 1.0828f, 1.0837f),
-    DemoCandle(1.0837f, 1.0845f, 1.0834f, 1.0842f),
-    DemoCandle(1.0842f, 1.0847f, 1.0836f, 1.0839f),
-    DemoCandle(1.0839f, 1.0844f, 1.0835f, 1.0841f)
-)
-
 @Composable
 fun PocketSignalScreen() {
     var selectedAsset by remember { mutableStateOf("EUR/USD OTC") }
@@ -73,6 +39,7 @@ fun PocketSignalScreen() {
     var statusMessage by remember {
         mutableStateOf("Ожидание подключения к источнику котировок")
     }
+    var chartCandles by remember { mutableStateOf(emptyList<Candle>()) }
 
     val assets = listOf(
         "EUR/USD OTC", "GBP/USD OTC", "USD/JPY OTC",
@@ -110,6 +77,11 @@ fun PocketSignalScreen() {
             }
 
             StatusCard(statusMessage)
+
+            OtcConnectionPanel(
+                onCandlesLoaded = { chartCandles = it },
+                onStatusChanged = { statusMessage = it }
+            )
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("РЫНОК И ИНСТРУМЕНТ", color = Muted, fontSize = 11.sp)
@@ -157,11 +129,11 @@ fun PocketSignalScreen() {
                         Text("M1", color = Accent, fontWeight = FontWeight.Bold)
                     }
                     DemoCandlestickChart(
-                        candles = demoCandles,
+                        candles = chartCandles,
                         modifier = Modifier.fillMaxWidth().height(220.dp)
                     )
                     Text(
-                        "ДЕМО-ДАННЫЕ • НЕ ЯВЛЯЮТСЯ КОТИРОВКАМИ РЫНКА",
+                        if (chartCandles.isEmpty()) "НЕТ ДАННЫХ • ПОДКЛЮЧИТЕ OTCHARTS" else "OTCHARTS • СВЕЧИ M1",
                         color = Color(0xFFFFC266),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold
@@ -204,17 +176,6 @@ fun PocketSignalScreen() {
                 }
             }
 
-            Button(
-                onClick = {
-                    statusMessage = "Анализ не запущен: источник реальных котировок ещё не подключён."
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Accent)
-            ) {
-                Text("ПРОВЕРИТЬ ПОДКЛЮЧЕНИЕ", color = Color(0xFF07130F), fontWeight = FontWeight.Bold)
-            }
-
             Text(
                 "Pocket Signal • Prototype 1.1",
                 color = Muted,
@@ -253,7 +214,7 @@ private fun ParameterRow(label: String, value: String) {
 
 @Composable
 private fun DemoCandlestickChart(
-    candles: List<DemoCandle>,
+    candles: List<Candle>,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
@@ -279,8 +240,8 @@ private fun DemoCandlestickChart(
 
         candles.forEachIndexed { index, candle ->
             val centerX = candleSlot * index + candleSlot / 2f
-            fun y(price: Float): Float =
-                chartPadding + (maxPrice - price) / range * chartHeight
+            fun y(price: Double): Float =
+                chartPadding + (((maxPrice - price) / range) * chartHeight).toFloat()
 
             val rising = candle.close >= candle.open
             val candleColor = if (rising) Accent else Color(0xFFFF647C)
