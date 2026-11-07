@@ -28,14 +28,14 @@ private fun isPocketOptionHost(host: String?): Boolean =
     host == "pocketoption.com" || host?.endsWith(".pocketoption.com") == true
 
 private fun safeDiagnosticText(raw: String, limit: Int = 180): String {
-    val withoutUrls = raw.replace(Regex("https?://[^\\s\\"'<>]+")) { match ->
+    val withoutUrls = raw.replace(Regex("https?://[^\\s]+")) { match ->
         runCatching {
             val host = android.net.Uri.parse(match.value).host
             if (host.isNullOrBlank()) "[url]" else "https://$host"
         }.getOrDefault("[url]")
     }
     return withoutUrls
-        .replace(Regex("(?i)(token|authorization|cookie|session|password|api[_-]?key)(\\s*[:=]\\s*)[^\\s,;]+"), "$1$2[redacted]")
+        .replace(Regex("(?i)(token|authorization|cookie|session|password|api[_-]?key)(\\s*[:=]\\s*)[^\\s,;]+")) { match -> match.groupValues[1] + "=[redacted]" }
         .take(limit)
 }
 
