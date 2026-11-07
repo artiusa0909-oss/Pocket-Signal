@@ -21,6 +21,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 
 private const val POCKET_OPTION_HOME = "https://pocketoption.com/en/"
 
@@ -313,11 +315,14 @@ fun PocketOptionWebView(
                     }
 
                     override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
-                        if (message.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR) {
+                        val text = message.message()
+                        if (text.startsWith("PS_NET:")) {
+                            reportStatus("СЕТЕВАЯ ДИАГНОСТИКА: " + safeDiagnosticText(text.removePrefix("PS_NET:").trim(), 260))
+                        } else if (message.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR) {
                             val sourceHost = runCatching {
                                 android.net.Uri.parse(message.sourceId()).host
                             }.getOrNull() ?: "скрипт"
-                            val detail = safeDiagnosticText(message.message())
+                            val detail = safeDiagnosticText(text)
                             reportStatus("JavaScript ERROR [$sourceHost:\${message.lineNumber()}]: $detail")
                         }
                         return true
@@ -411,6 +416,18 @@ fun PocketOptionWebView(
                         reportStatus("Процесс отображения страницы остановился. Нажми «Обновить».")
                         return true
                     }
+                }
+
+                val probeSupported = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
+                if (probeSupported) {
+                    WebViewCompat.addDocumentStartJavaScript(
+                        this,
+                        PassiveNetworkProbe.SCRIPT,
+                        setOf("https://pocketoption.com", "https://*.pocketoption.com")
+                    )
+                    reportStatus("Пассивная сетевая диагностика установлена до запуска скриптов сайта.")
+                } else {
+                    reportStatus("Эта версия Android System WebView не поддерживает раннюю сетевую диагностику.")
                 }
 
                 loadUrl(POCKET_OPTION_HOME)
