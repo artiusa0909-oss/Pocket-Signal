@@ -95,16 +95,13 @@ fun PocketSignalScreen() {
                 }
             )
 
-            // Keep the broker's own chart and bottom navigation unobstructed.
-            // The analysis panel is shown only after a real decision is supplied.
-            if (signalDecision != null) {
-                SignalPanel(
-                    decision = signalDecision,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                )
-            }
+            // Analysis panel sits at the bottom, above the broker's own bottom navigation.
+            SignalPanel(
+                decision = signalDecision,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 8.dp, end = 8.dp, bottom = 76.dp)
+            )
 
             if (!pageVisible) {
                 Surface(
