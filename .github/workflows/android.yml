@@ -44,6 +44,9 @@ jobs:
       - name: Check Gradle version
         run: gradle --version
 
+      - name: Run unit tests
+        run: gradle --no-daemon --max-workers=2 testDebugUnitTest
+
       - name: Build APK
         run: gradle --no-daemon --max-workers=2 assembleDebug
 
