@@ -14,6 +14,11 @@ class SignalEngine(
     private val minimumConfidence: Int = 72,
     private val minimumCandles: Int = 35
 ) {
+    init {
+        require(minimumConfidence in 0..100) { "minimumConfidence must be in 0..100." }
+        require(minimumCandles >= 35) { "At least 35 candles are required by the indicator set." }
+    }
+
     fun analyze(input: List<Candle>): SignalDecision {
         if (input.size < minimumCandles) {
             return noSignal("Недостаточно свечей: требуется минимум $minimumCandles, получено ${input.size}.")
