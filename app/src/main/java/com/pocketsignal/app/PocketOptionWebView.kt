@@ -47,11 +47,13 @@ fun PocketOptionWebView(
     val context = LocalContext.current
     val currentOnStatus = rememberUpdatedState(onStatus)
     val currentOnWebView = rememberUpdatedState(onWebView)
+    val popupViews = remember(context, reloadKey) { mutableListOf<WebView>() }
     val reportStatus: (String) -> Unit = { message -> currentOnStatus.value.invoke(message) }
 
     key(reloadKey) {
         val webView = remember(context, reloadKey) {
             WebView(context).apply {
+                val primaryWebView = this
                 setBackgroundColor(android.graphics.Color.rgb(8, 13, 19))
                 setLayerType(View.LAYER_TYPE_HARDWARE, null)
                 isVerticalScrollBarEnabled = false
@@ -64,7 +66,7 @@ fun PocketOptionWebView(
                     databaseEnabled = true
                     loadsImagesAutomatically = true
                     javaScriptCanOpenWindowsAutomatically = true
-                    setSupportMultipleWindows(false)
+                    setSupportMultipleWindows(true)
                     allowFileAccess = false
                     allowContentAccess = false
                     mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
@@ -109,8 +111,53 @@ fun PocketOptionWebView(
                         isUserGesture: Boolean,
                         resultMsg: android.os.Message
                     ): Boolean {
-                        reportStatus("Сайт запросил отдельное окно. Проверяем поддержку торгового терминала…")
-                        return false
+                        // Pocket Option may open the trading terminal/chart with target="_blank".
+                        // Route that HTTPS window into the visible primary WebView instead of
+                        // leaving it in an invisible secondary WebView or rejecting it.
+                        val popup = WebView(context)
+                        popupViews.add(popup)
+                        popup.setBackgroundColor(android.graphics.Color.rgb(8, 13, 19))
+                        popup.settings.apply {
+                            javaScriptEnabled = true
+                            domStorageEnabled = true
+                            javaScriptCanOpenWindowsAutomatically = true
+                            setSupportMultipleWindows(false)
+                            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                            allowFileAccess = false
+                            allowContentAccess = false
+                        }
+                        CookieManager.getInstance().setAcceptThirdPartyCookies(popup, true)
+                        popup.webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(
+                                popupView: WebView,
+                                request: WebResourceRequest
+                            ): Boolean {
+                                val target = request.url
+                                if (target.scheme.equals("about", ignoreCase = true)) return false
+                                if (target.scheme.equals("https", ignoreCase = true)) {
+                                    reportStatus("Открываем торговый терминал и график…")
+                                    primaryWebView.post { primaryWebView.loadUrl(target.toString()) }
+                                } else {
+                                    reportStatus("Заблокировано небезопасное окно: ${target.scheme ?: "unknown"}.")
+                                }
+                                popupViews.remove(popupView)
+                                popupView.post {
+                                    popupView.stopLoading()
+                                    popupView.destroy()
+                                }
+                                return true
+                            }
+                        }
+                        popup.webChromeClient = object : WebChromeClient() {}
+                        val transport = resultMsg.obj as? WebView.WebViewTransport ?: run {
+                            popupViews.remove(popup)
+                            popup.destroy()
+                            return false
+                        }
+                        transport.webView = popup
+                        resultMsg.sendToTarget()
+                        reportStatus("Подключаем отдельное окно торгового терминала…")
+                        return true
                     }
                 }
 
@@ -197,6 +244,10 @@ fun PocketOptionWebView(
             currentOnWebView.value.invoke(webView)
             onDispose {
                 currentOnWebView.value.invoke(null)
+                popupViews.toList().forEach { popup ->
+                    runCatching { popup.stopLoading(); popup.destroy() }
+                }
+                popupViews.clear()
                 webView.stopLoading()
                 webView.destroy()
             }
