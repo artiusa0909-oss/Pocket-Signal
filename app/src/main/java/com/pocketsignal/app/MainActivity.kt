@@ -69,6 +69,9 @@ private fun PocketSignalCompanionScreen() {
     var gatewayUrl by remember {
         mutableStateOf(preferences.getString(FloatingOverlayService.KEY_GATEWAY, "").orEmpty())
     }
+    var gatewayToken by remember {
+        mutableStateOf(preferences.getString(FloatingOverlayService.KEY_GATEWAY_TOKEN, "").orEmpty())
+    }
     var status by remember {
         mutableStateOf("Оригинальный Pocket Option не изменяется. Разреши показ поверх других приложений.")
     }
@@ -207,16 +210,26 @@ private fun PocketSignalCompanionScreen() {
                             label = { Text("HTTPS URL GPT gateway") },
                             placeholder = { Text("https://api.example.com") }
                         )
+                        OutlinedTextField(
+                            value = gatewayToken,
+                            onValueChange = { gatewayToken = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            label = { Text("Ключ доступа к шлюзу") },
+                            placeholder = { Text("Совпадает с PS_CLIENT_TOKEN на сервере") }
+                        )
                         OutlinedButton(
                             onClick = {
                                 val normalized = gatewayUrl.trim().trimEnd('/')
-                                if (normalized.startsWith("https://") && normalized.length > 8) {
+                                val token = gatewayToken.trim()
+                                if (normalized.startsWith("https://") && normalized.length > 8 && token.length >= 24) {
                                     preferences.edit()
                                         .putString(FloatingOverlayService.KEY_GATEWAY, normalized)
+                                        .putString(FloatingOverlayService.KEY_GATEWAY_TOKEN, token)
                                         .apply()
-                                    status = "Адрес GPT-шлюза сохранён."
+                                    status = "HTTPS-адрес и ключ доступа сохранены."
                                 } else {
-                                    status = "Нужен корректный HTTPS-адрес. HTTP не поддерживается."
+                                    status = "Укажи HTTPS-адрес и ключ доступа длиной не менее 24 символов."
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
