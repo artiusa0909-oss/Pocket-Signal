@@ -20,7 +20,8 @@ Standalone Android application for read-only Pocket Option market monitoring and
 - Standalone application ID and Pocket Signal GPT label configured.
 - Server-side GPT HTTP client and request/response contract added.
 - A verified, supported source of completed chart candles is still outstanding.
-- GPT gateway deployment/configuration is still outstanding.
+- Cloudflare Worker gateway is deployed at `https://pocket-signal-gpt-gateway.artiusa0909.workers.dev` and configured as the Android client's default endpoint.
+- The gateway's POST analysis contract has not yet been verified end-to-end from Android.
 - Live signals must remain disabled until both the candle feed and GPT gateway are verified and strategy results are back-tested.
 
 See [AI analysis architecture](docs/AI_ANALYSIS_ARCHITECTURE.md) and [monitor architecture](docs/POCKET_OPTION_MONITOR_ARCHITECTURE.md).
