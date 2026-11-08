@@ -151,9 +151,9 @@ private fun SignalPanel(
         null -> Muted
     }
     val status = when {
-        hasSignal -> "СИГНАЛ ПОДТВЕРЖДЁН"
+        hasSignal -> "КАНДИДАТ СИГНАЛА"
         decision == null -> "СБОР ДАННЫХ"
-        else -> "НЕТ УВЕРЕННОГО СИГНАЛА"
+        else -> "НЕТ СИГНАЛА"
     }
     val direction = when {
         !hasSignal -> "—"
@@ -193,7 +193,7 @@ private fun SignalPanel(
             ) {
                 Text(direction, color = directionColor, fontSize = 17.sp,
                     fontWeight = FontWeight.ExtraBold)
-                Text(if (hasSignal) "${decision?.confidence}%" else "—",
+                Text(if (hasSignal) "БАЛЛ ${decision?.confidence}/100" else "—",
                     color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
             Text(detail, color = Muted, fontSize = 8.sp, maxLines = 1)
