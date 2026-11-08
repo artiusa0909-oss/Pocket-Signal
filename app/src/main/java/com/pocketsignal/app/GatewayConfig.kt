@@ -6,5 +6,5 @@ package com.pocketsignal.app
  */
 internal object GatewayConfig {
     const val BASE_URL = "https://pocket-signal-gpt-gateway.artiusa0909.workers.dev"
-    const val ANALYZE_URL = "$" + "{BASE_URL}/v1/analyze"
+    const val ANALYZE_URL = "https://pocket-signal-gpt-gateway.artiusa0909.workers.dev/v1/analyze"
 }
