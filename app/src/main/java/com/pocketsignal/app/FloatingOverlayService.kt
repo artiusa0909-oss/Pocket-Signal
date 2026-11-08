@@ -258,7 +258,7 @@ class FloatingOverlayService : Service() {
             return
         }
 
-        appendMessage("user", message)
+        appendMessage("user", message, remember = false)
         input?.setText("")
         sendButton?.isEnabled = false
         statusText?.text = "GPT: отправляем запрос…"
