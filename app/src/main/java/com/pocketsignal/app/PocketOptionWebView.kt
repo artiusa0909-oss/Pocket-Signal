@@ -21,8 +21,13 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 
 private const val POCKET_OPTION_HOME = "https://pocketoption.com/en/"
+
+private fun isPocketOptionHost(host: String?): Boolean =
+    host == "pocketoption.com" || host?.endsWith(".pocketoption.com") == true
 
 private fun safeDiagnosticText(raw: String, limit: Int = 180): String {
     val withoutUrls = raw.replace(Regex("https?://[^\\s]+")) { match ->
@@ -34,6 +39,291 @@ private fun safeDiagnosticText(raw: String, limit: Int = 180): String {
     return withoutUrls
         .replace(Regex("(?i)(token|authorization|cookie|session|password|api[_-]?key)(\\s*[:=]\\s*)[^\\s,;]+")) { match -> match.groupValues[1] + "=[redacted]" }
         .take(limit)
+}
+
+private const val CHART_SNAPSHOT_SCRIPT = """
+(function() {
+  try {
+    function box(el) {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const s = window.getComputedStyle(el);
+      return {
+        rect: Math.round(r.width) + 'x' + Math.round(r.height),
+        client: el.clientWidth + 'x' + el.clientHeight,
+        scroll: el.scrollWidth + 'x' + el.scrollHeight,
+        cssHeight: s.height,
+        display: s.display,
+        visibility: s.visibility,
+        position: s.position,
+        overflow: s.overflow
+      };
+    }
+    const canvases = Array.from(document.querySelectorAll('canvas')).slice(0, 6).map(function(c) {
+      const chain = [];
+      let p = c.parentElement;
+      for (let i = 0; p && i < 4; i++, p = p.parentElement) {
+        const r = p.getBoundingClientRect();
+        chain.push({
+          tag: p.tagName,
+          id: (p.id || '').slice(0, 50),
+          className: (typeof p.className === 'string' ? p.className : '').slice(0, 80),
+          rect: Math.round(r.width) + 'x' + Math.round(r.height)
+        });
+      }
+      const r = c.getBoundingClientRect();
+      const s = window.getComputedStyle(c);
+      let glInfo = null;
+      try {
+        const gl = c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl');
+        if (gl) {
+          const lost = gl.isContextLost();
+          let pixelStats = null;
+          if (!lost && c.width > 8 && c.height > 8) {
+            try {
+              const pixels = new Uint8Array(8 * 8 * 4);
+              const fb = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+              gl.readPixels(
+                Math.max(0, Math.floor(c.width / 2) - 4),
+                Math.max(0, Math.floor(c.height / 2) - 4),
+                8, 8, gl.RGBA, gl.UNSIGNED_BYTE, pixels
+              );
+              const colors = new Set();
+              let nonTransparent = 0;
+              let nonBlack = 0;
+              for (let i = 0; i < pixels.length; i += 4) {
+                colors.add(pixels[i] + ',' + pixels[i+1] + ',' + pixels[i+2] + ',' + pixels[i+3]);
+                if (pixels[i+3] > 0) nonTransparent++;
+                if (pixels[i] > 8 || pixels[i+1] > 8 || pixels[i+2] > 8) nonBlack++;
+              }
+              pixelStats = {
+                uniqueColors: colors.size,
+                nonTransparentPixels: nonTransparent,
+                nonBlackPixels: nonBlack,
+                framebufferBound: !!fb
+              };
+            } catch (pixelError) {
+              pixelStats = {error:String(pixelError).slice(0,80)};
+            }
+          }
+          glInfo = {
+            context: (gl instanceof WebGL2RenderingContext) ? 'webgl2' : 'webgl',
+            lost: lost,
+            drawingBuffer: gl.drawingBufferWidth + 'x' + gl.drawingBufferHeight,
+            version: String(gl.getParameter(gl.VERSION) || '').slice(0,80),
+            renderer: String(gl.getParameter(gl.RENDERER) || '').slice(0,100),
+            pixelStats: pixelStats
+          };
+        } else {
+          glInfo = {context:'no-webgl-context'};
+        }
+      } catch (glError) {
+        glInfo = {error:String(glError).slice(0,100)};
+      }
+      return {
+        bitmap: c.width + 'x' + c.height,
+        rect: Math.round(r.width) + 'x' + Math.round(r.height),
+        display: s.display,
+        visibility: s.visibility,
+        opacity: s.opacity,
+        gl: glInfo,
+        parentChain: chain
+      };
+    });
+    const frames = Array.from(document.querySelectorAll('iframe')).slice(0, 8).map(function(f) {
+      const r = f.getBoundingClientRect();
+      const s = window.getComputedStyle(f);
+      let nested = null;
+      try {
+        const d = f.contentDocument;
+        if (d) nested = {
+          ready: d.readyState,
+          body: d.body ? box(d.body) : null,
+          canvases: d.querySelectorAll('canvas').length
+        };
+      } catch (_) {}
+      let host = '';
+      try { host = f.src ? new URL(f.src, location.href).host : ''; } catch (_) {}
+      return {
+        host: host,
+        rect: Math.round(r.width) + 'x' + Math.round(r.height),
+        display: s.display,
+        visibility: s.visibility,
+        opacity: s.opacity,
+        nested: nested
+      };
+    });
+    const videos = Array.from(document.querySelectorAll('video')).slice(0, 6).map(function(v) {
+      const r = v.getBoundingClientRect();
+      let sourceHost = '';
+      try { sourceHost = v.currentSrc ? new URL(v.currentSrc, location.href).host : ''; } catch (_) {}
+      return {
+        sourceHost: sourceHost,
+        rect: Math.round(r.width) + 'x' + Math.round(r.height),
+        videoSize: v.videoWidth + 'x' + v.videoHeight,
+        readyState: v.readyState,
+        networkState: v.networkState,
+        paused: v.paused
+      };
+    });
+    function layoutInfo(el) {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const s = window.getComputedStyle(el);
+      return {
+        tag: el.tagName,
+        id: (el.id || '').slice(0, 60),
+        className: (typeof el.className === 'string' ? el.className : '').slice(0, 100),
+        rect: Math.round(r.width) + 'x' + Math.round(r.height),
+        offset: el.offsetWidth + 'x' + el.offsetHeight,
+        client: el.clientWidth + 'x' + el.clientHeight,
+        cssHeight: s.height,
+        minHeight: s.minHeight,
+        maxHeight: s.maxHeight,
+        display: s.display,
+        position: s.position,
+        flex: s.flex,
+        alignSelf: s.alignSelf,
+        overflow: s.overflow
+      };
+    }
+    const bodyChildren = Array.from(document.body ? document.body.children : [])
+      .slice(0, 14).map(layoutInfo);
+    const portraitDummy = layoutInfo(document.querySelector('.portrait-dummy'));
+    const rootMetrics = {
+      html: layoutInfo(document.documentElement),
+      body: layoutInfo(document.body),
+      viewportMeta: (document.querySelector('meta[name="viewport"]') || {}).content || null,
+      screen: window.screen ? window.screen.width + 'x' + window.screen.height : null,
+      orientation: screen.orientation ? screen.orientation.type : null,
+      inner: window.innerWidth + 'x' + window.innerHeight,
+      pageYOffset: window.pageYOffset,
+      scrollHeight: document.scrollingElement ? document.scrollingElement.scrollHeight : null
+    };
+    const chartRoot = document.querySelector('#chart-1') || document.querySelector('canvas');
+    const chartAncestors = [];
+    for (let p = chartRoot, i = 0; p && i < 18; p = p.parentElement, i++) {
+      chartAncestors.push(layoutInfo(p));
+    }
+    const appRoots = Array.from(document.querySelectorAll('#app, #root, #app-root, #page, main, [id*="chart"]'))
+      .slice(0, 16).map(layoutInfo);
+    const vv = window.visualViewport;
+    const gl = !!(window.WebGLRenderingContext || window.WebGL2RenderingContext);
+    return JSON.stringify({
+      ready: document.readyState,
+      hidden: document.hidden,
+      viewport: window.innerWidth + 'x' + window.innerHeight,
+      visualViewport: vv ? Math.round(vv.width) + 'x' + Math.round(vv.height) + '@' + vv.scale : null,
+      dpr: window.devicePixelRatio || 1,
+      rootMetrics: rootMetrics,
+      portraitDummy: portraitDummy,
+      chartAncestors: chartAncestors,
+      appRoots: appRoots,
+      bodyChildren: bodyChildren,
+      canvases: document.querySelectorAll('canvas').length,
+      canvasInfo: canvases,
+      iframes: document.querySelectorAll('iframe').length,
+      frameInfo: frames,
+      videos: document.querySelectorAll('video').length,
+      videoInfo: videos,
+      webglApi: gl
+    });
+  } catch (e) {
+    return JSON.stringify({snapshotError: String(e).slice(0, 120)});
+  }
+})()
+"""
+
+
+private const val CHART_LAYOUT_REPAIR_SCRIPT = """
+(function() {
+  try {
+    var styleId = 'pocket-signal-chart-layout-repair';
+    var css = [
+      'html { height: 100vh !important; min-height: 100vh !important; }',
+      'body { height: 100vh !important; min-height: 100vh !important; max-height: 100vh !important; overflow: hidden !important; }',
+      '.m-main-wrap.js-m-main-wrap { height: 100vh !important; min-height: 100vh !important; max-height: 100vh !important; }',
+      '.m-main-wrap__in, .main-table-wrap, .wrapper, .site-content.left-shadow, #bar-chart, .page.traderoom, .charts.single, .layout-container, .chart-item, .chart, .chart-container { height: 100% !important; min-height: 0 !important; }',
+      '.m-main-wrap__in, .main-table-wrap, .wrapper, .site-content.left-shadow, .layout-container { flex: 1 1 auto !important; min-height: 0 !important; }',
+      '.chart-item { flex: 1 1 100% !important; }'
+    ].join('\n');
+    var style = document.getElementById(styleId);
+    if (!style) {
+      style = document.createElement('style');
+      style.id = styleId;
+      (document.head || document.documentElement).appendChild(style);
+    }
+    style.textContent = css;
+
+    // Apply critical dimensions as inline !important styles so late site CSS
+    // cannot override the repair stylesheet.
+    var viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 0);
+    var root = document.documentElement;
+    var body = document.body;
+    function setImportant(el, property, value) {
+      if (el) el.style.setProperty(property, value, 'important');
+    }
+    setImportant(root, 'height', viewportHeight + 'px');
+    setImportant(root, 'min-height', viewportHeight + 'px');
+    setImportant(body, 'height', viewportHeight + 'px');
+    setImportant(body, 'min-height', viewportHeight + 'px');
+    setImportant(body, 'max-height', viewportHeight + 'px');
+    setImportant(body, 'overflow', 'hidden');
+    var main = document.querySelector('.m-main-wrap.js-m-main-wrap');
+    setImportant(main, 'height', viewportHeight + 'px');
+    setImportant(main, 'min-height', viewportHeight + 'px');
+    setImportant(main, 'max-height', viewportHeight + 'px');
+    var chain = [
+      '.m-main-wrap__in', '.main-table-wrap', '.wrapper',
+      '.site-content.left-shadow', '#bar-chart', '.page.traderoom',
+      '.charts.single', '.layout-container', '.chart-item',
+      '.chart', '.chart-container'
+    ];
+    var inlineTargets = 0;
+    chain.forEach(function(selector) {
+      document.querySelectorAll(selector).forEach(function(el) {
+        setImportant(el, 'height', '100%');
+        setImportant(el, 'min-height', '0px');
+        inlineTargets++;
+      });
+    });
+    document.querySelectorAll('.m-main-wrap__in, .main-table-wrap, .wrapper, .site-content.left-shadow, .layout-container')
+      .forEach(function(el) { setImportant(el, 'flex', '1 1 auto'); });
+    document.querySelectorAll('.chart-item').forEach(function(el) { setImportant(el, 'flex', '1 1 100%'); });
+    window.dispatchEvent(new Event('resize'));
+    return JSON.stringify({
+      applied: true,
+      cssRuleCount: style.sheet ? style.sheet.cssRules.length : -1,
+      cssTextLength: style.textContent.length,
+      inlineTargets: inlineTargets,
+      viewport: window.innerWidth + 'x' + window.innerHeight,
+      html: Math.round(root.getBoundingClientRect().height),
+      htmlCss: getComputedStyle(root).height,
+      body: Math.round(body.getBoundingClientRect().height),
+      bodyCss: getComputedStyle(body).height,
+      main: main ? Math.round(main.getBoundingClientRect().height) : null,
+      chart: (function() {
+        var el = document.querySelector('#chart-1');
+        return el ? Math.round(el.getBoundingClientRect().height) : null;
+      })()
+    });
+  } catch (e) {
+    return JSON.stringify({applied:false,error:String(e).slice(0,120)});
+  }
+})()
+"""
+
+
+private fun captureChartSnapshot(
+    view: WebView,
+    label: String,
+    reportStatus: (String) -> Unit
+) {
+    // Read-only snapshot: do not inject CSS, resize chart nodes, or dispatch resize events.
+    view.evaluateJavascript(CHART_SNAPSHOT_SCRIPT) { result ->
+        val safeResult = result?.take(6000) ?: "нет ответа"
+        reportStatus("График $label (WebView ${view.width}x${view.height}): $safeResult")
+    }
 }
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -52,7 +342,6 @@ fun PocketOptionWebView(
     key(reloadKey) {
         val webView = remember(context, reloadKey) {
             WebView(context).apply {
-                val primaryWebView = this
                 setBackgroundColor(android.graphics.Color.rgb(8, 13, 19))
                 setLayerType(View.LAYER_TYPE_HARDWARE, null)
                 isVerticalScrollBarEnabled = false
@@ -110,9 +399,7 @@ fun PocketOptionWebView(
                         isUserGesture: Boolean,
                         resultMsg: android.os.Message
                     ): Boolean {
-                        // Match the previously working embedded Pocket Option WebView behavior.
-                        // The broker's normal in-page navigation remains in the primary WebView.
-                        reportStatus("Отдельное окно сайта не открывается; продолжаем в основном окне.")
+                        reportStatus("Сайт запросил отдельное окно. Проверяем поддержку торгового терминала…")
                         return false
                     }
                 }
@@ -123,11 +410,13 @@ fun PocketOptionWebView(
                         request: WebResourceRequest
                     ): Boolean {
                         val uri = request.url
-                        // Restore the known-working Pocket Option host policy from builds #90-115.
-                        val allowed = uri.scheme.equals("https", ignoreCase = true) &&
-                            (uri.host == "pocketoption.com" || uri.host?.endsWith(".pocketoption.com") == true)
+                        val allowed = uri.scheme == "https" && isPocketOptionHost(uri.host)
                         if (!allowed) {
-                            reportStatus("Заблокирован переход на " + (uri.host ?: "неизвестный адрес") + ".")
+                            reportStatus(
+                                "Заблокирован переход на " +
+                                    (uri.host ?: "неизвестный адрес") +
+                                    ". Проверим домен перед добавлением."
+                            )
                         }
                         return !allowed
                     }
@@ -141,7 +430,17 @@ fun PocketOptionWebView(
                     }
 
                     override fun onPageFinished(view: WebView, url: String?) {
-                        reportStatus("Страница загружена. Не вмешиваемся в отрисовку графика.")
+                        reportStatus("Страница загружена. Проверяем восстановление размеров графика…")
+                        view.evaluateJavascript(CHART_LAYOUT_REPAIR_SCRIPT) { result ->
+                            reportStatus("Проверка CSS-разметки: ${result?.take(500) ?: "нет ответа"}")
+                            captureChartSnapshot(view, "после проверки размеров", reportStatus)
+                        }
+                        view.postDelayed({
+                            captureChartSnapshot(view, "через 1,5 секунды", reportStatus)
+                        }, 1500L)
+                        view.postDelayed({
+                            captureChartSnapshot(view, "через 4 секунды", reportStatus)
+                        }, 4000L)
                     }
 
                     override fun onReceivedError(
@@ -187,7 +486,17 @@ fun PocketOptionWebView(
                     }
                 }
 
-                // Keep Pocket Option's own JavaScript, WebSocket and chart rendering untouched.
+                val probeSupported = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
+                if (probeSupported) {
+                    WebViewCompat.addDocumentStartJavaScript(
+                        this,
+                        PassiveNetworkProbe.SCRIPT,
+                        setOf("https://pocketoption.com", "https://*.pocketoption.com")
+                    )
+                    reportStatus("Пассивная сетевая диагностика установлена до запуска скриптов сайта.")
+                } else {
+                    reportStatus("Эта версия Android System WebView не поддерживает раннюю сетевую диагностику.")
+                }
 
                 loadUrl(POCKET_OPTION_HOME)
             }
