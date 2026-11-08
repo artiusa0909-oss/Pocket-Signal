@@ -67,7 +67,8 @@ export default {
       }
       const reply = (typeof result.output_text === "string" ? result.output_text :
         Array.isArray(result.output) ? result.output.flatMap(item => Array.isArray(item.content) ? item.content : [])
-          .filter(item => item.type === "output_text" && typeof item.text === "string")\n          .map(item => item.text).join("\n") : "").trim();
+          .filter(item => item.type === "output_text" && typeof item.text === "string")
+          .map(item => item.text).join("\n") : "").trim();
       if (!reply) return json({ error: "AI provider returned no text" }, 502);
       return json({ reply });
     } catch {
