@@ -2,7 +2,7 @@
  * Pocket Signal GPT gateway — Cloudflare Worker
  *
  * Required Worker secret: OPENAI_API_KEY
- * Optional plain-text variable: OPENAI_MODEL (defaults to gpt-6-luna)
+ * Optional plain-text variable: OPENAI_MODEL (defaults to gpt-6-astra)
  *
  * Routes:
  *   GET  /              health check
@@ -43,7 +43,7 @@ function json(data, status = 200) {
 }
 
 function timeframeMs(value) {
-  const match = /^([1-9]\\d*)([mhd])$/i.exec(String(value || ""));
+  const match = /^([1-9]\d*)([mhd])$/i.exec(String(value || ""));
   if (!match) return null;
   const n = Number(match[1]);
   const unit = match[2].toLowerCase();
@@ -142,7 +142,7 @@ export default {
       catch { return json({ error: "Invalid JSON." }, 400); }
 
       const market = validateRequest(body);
-      const model = env.OPENAI_MODEL || "gpt-6-luna";
+      const model = env.OPENAI_MODEL || "gpt-6-astra";
       const now = new Date().toISOString();
 
       const instructions = [
