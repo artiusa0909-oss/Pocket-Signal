@@ -19,7 +19,7 @@ export default {
       return json({ error: "Gateway is not configured" }, 503);
     }
 
-    const supplied = (request.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "");
+    const supplied = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
     if (!supplied || !(await constantTimeEqual(supplied, env.PS_CLIENT_TOKEN))) {
       return json({ error: "Unauthorized" }, 401);
     }
@@ -65,7 +65,7 @@ export default {
         // Do not return upstream details or secrets to the mobile client.
         return json({ error: "AI provider request failed", status: upstream.status }, 502);
       }
-      const reply = (typeof result.output_text === "string" ? result.output_text :\n        Array.isArray(result.output) ? result.output.flatMap(item => Array.isArray(item.content) ? item.content : [])\n          .filter(item => item.type === "output_text" && typeof item.text === "string")\n          .map(item => item.text).join("\\n") : "").trim();
+      const reply = (typeof result.output_text === "string" ? result.output_text :\n        Array.isArray(result.output) ? result.output.flatMap(item => Array.isArray(item.content) ? item.content : [])\n          .filter(item => item.type === "output_text" && typeof item.text === "string")\n          .map(item => item.text).join("\n") : "").trim();
       if (!reply) return json({ error: "AI provider returned no text" }, 502);
       return json({ reply });
     } catch {
