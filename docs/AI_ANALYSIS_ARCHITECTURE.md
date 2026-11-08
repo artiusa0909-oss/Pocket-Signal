@@ -52,4 +52,6 @@ The service must reject stale, malformed, insufficient, or out-of-order data. AP
 - GitHub repository and Android Actions workflow are accessible.
 - This branch starts from the existing Pocket Option WebView integration prototype.
 - The application ID is being changed to `com.pocketsignal.gptsignal` to install independently.
-- A real chart-candle feed and GPT backend are not yet connected. Until both are verified, the UI must not display live trade signals.
+- Cloudflare Worker gateway is deployed at `https://pocket-signal-gpt-gateway.artiusa0909.workers.dev`; the Android HTTP client now uses this endpoint by default.
+- The gateway's POST `/v1/analyze` contract has not yet been verified end-to-end from Android.
+- A verified, authorized source of completed chart candles is still not connected. Until the candle feed and POST contract are verified, the UI must not display live AI trade signals.
