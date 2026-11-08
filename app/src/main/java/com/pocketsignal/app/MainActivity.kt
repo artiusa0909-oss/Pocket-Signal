@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -54,6 +56,9 @@ class MainActivity : ComponentActivity() {
 fun PocketSignalScreen() {
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var signalDecision by remember { mutableStateOf<SignalDecision?>(null) }
+    var reloadKey by remember { mutableIntStateOf(0) }
+    var pageVisible by remember { mutableStateOf(false) }
+    var loadingStatus by remember { mutableStateOf("Подключаем торговую платформу…") }
 
     BackHandler(enabled = webViewRef?.canGoBack() == true) {
         webViewRef?.goBack()
@@ -73,18 +78,66 @@ fun PocketSignalScreen() {
                 .windowInsetsPadding(WindowInsets.systemBars)
         ) {
             PocketOptionWebView(
-                reloadKey = 0,
+                reloadKey = reloadKey,
                 modifier = Modifier.fillMaxSize(),
                 onWebView = { webViewRef = it },
-                onStatus = { _ -> }
+                onStatus = { message ->
+                    loadingStatus = message
+                    if (message.startsWith("Страница отображается") ||
+                        message.startsWith("Страница загружена.")) {
+                        pageVisible = true
+                    }
+                    if (message.startsWith("Ошибка основной страницы") ||
+                        message.startsWith("Соединение остановлено") ||
+                        message.startsWith("Процесс отображения страницы")) {
+                        pageVisible = false
+                    }
+                }
             )
 
-            SignalPanel(
-                decision = signalDecision,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 8.dp, bottom = 12.dp)
-            )
+            // Keep the broker's own chart and bottom navigation unobstructed.
+            // The analysis panel is shown only after a real decision is supplied.
+            if (signalDecision != null) {
+                SignalPanel(
+                    decision = signalDecision,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                )
+            }
+
+            if (!pageVisible) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = ScreenBg.copy(alpha = 0.94f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(color = Accent)
+                        Text(
+                            text = loadingStatus,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(top = 16.dp)
+                        )
+                        Button(
+                            onClick = {
+                                pageVisible = false
+                                loadingStatus = "Повторное подключение…"
+                                reloadKey++
+                            },
+                            modifier = Modifier.padding(top = 16.dp)
+                        ) {
+                            Text("Обновить")
+                        }
+                    }
+                }
+            }
         }
     }
 }
