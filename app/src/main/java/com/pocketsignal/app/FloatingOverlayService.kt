@@ -262,12 +262,13 @@ class FloatingOverlayService : Service() {
         input?.setText("")
         sendButton?.isEnabled = false
         statusText?.text = "GPT: отправляем запрос…"
+        val previousHistory = history.toList()
         thread(name = "PocketSignalChat") {
             try {
-                val response = requestGateway(endpoint, message)
-                history.add("user" to message)
-                history.add("assistant" to response)
+                val response = requestGateway(endpoint, message, previousHistory)
                 mainHandler.post {
+                    history.add("user" to message)
+                    history.add("assistant" to response)
                     appendMessage("assistant", response, remember = false)
                     statusText?.text = "GPT: ответ получен · котировки не подключены"
                     sendButton?.isEnabled = true
@@ -282,7 +283,11 @@ class FloatingOverlayService : Service() {
         }
     }
 
-    private fun requestGateway(baseUrl: String, message: String): String {
+    private fun requestGateway(
+        baseUrl: String,
+        message: String,
+        previousHistory: List<Pair<String, String>>
+    ): String {
         val url = URL(baseUrl.trimEnd('/') + "/v1/chat")
         val connection = url.openConnection() as HttpURLConnection
         try {
@@ -294,7 +299,7 @@ class FloatingOverlayService : Service() {
             connection.setRequestProperty("Accept", "application/json")
 
             val messages = JSONArray()
-            (history + listOf("user" to message)).takeLast(20).forEach { (role, text) ->
+            (previousHistory + listOf("user" to message)).takeLast(20).forEach { (role, text) ->
                 messages.put(JSONObject().put("role", role).put("content", text))
             }
             val payload = JSONObject().put("messages", messages)
