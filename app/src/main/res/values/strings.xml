@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="overlay_service_description">Floating Pocket Signal assistant window shown over the user's selected app.</string>
+    <string name="pocket_signal_overlay_description">Floating companion overlay service.</string>
 </resources>
