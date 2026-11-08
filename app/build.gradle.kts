@@ -13,8 +13,8 @@ android {
         applicationId = "com.pocketsignal.gptsignal"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "2.1.2"
+        versionCode = 6
+        versionName = "2.1.3"
     }
 
     buildFeatures {
@@ -44,6 +44,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+
+    testImplementation("junit:junit:4.13.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
