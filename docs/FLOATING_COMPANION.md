@@ -40,7 +40,7 @@ Response:
 }
 ```
 
-The server should authenticate the user, apply rate limits, avoid logging secrets, and return a bounded response. This endpoint is a gateway contract; it is not provisioned by the Android build itself.
+The repository includes a Cloudflare Worker implementation in `gateway/worker.js`. It authenticates the mobile client with a separate bearer token, validates message size and roles, calls the OpenAI Responses API, disables response storage (`store: false`), and returns only `{ "reply": "..." }`. The OpenAI API key remains a server-side secret. The Worker is a deployment template; it is not deployed automatically by the Android build.\n\n### Deploy the gateway\n\n1. Install Wrangler and authenticate to your Cloudflare account.\n2. From the `gateway/` directory, deploy with `npx wrangler deploy`.\n3. Generate a random client token (for example, `openssl rand -hex 32`). Keep it private.\n4. Add server-side secrets: `npx wrangler secret put OPENAI_API_KEY`, `npx wrangler secret put PS_CLIENT_TOKEN`, and `npx wrangler secret put OPENAI_MODEL`. For `OPENAI_MODEL`, use a model ID enabled for your OpenAI API account.\n5. In the Android app, save the deployed Worker HTTPS base URL and the exact same `PS_CLIENT_TOKEN` in the GPT connection section. The app sends it as an Authorization bearer token.\n\nUse a unique token and rotate it if the APK or token is shared. The Worker should additionally be protected with provider-side rate limits/usage alerts before wider distribution. Never commit API keys or client tokens to GitHub. The gateway is not live until deployed and configured with valid account credentials.
 
 ## Market-analysis limitation
 
