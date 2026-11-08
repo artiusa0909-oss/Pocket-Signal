@@ -268,7 +268,7 @@ class FloatingOverlayService : Service() {
                 history.add("user" to message)
                 history.add("assistant" to response)
                 mainHandler.post {
-                    appendMessage("assistant", response)
+                    appendMessage("assistant", response, remember = false)
                     statusText?.text = "GPT: ответ получен · котировки не подключены"
                     sendButton?.isEnabled = true
                 }
