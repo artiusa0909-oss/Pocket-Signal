@@ -36,7 +36,7 @@ data class AiAnalysisResult(
 )
 
 class AiAnalysisClient(
-    private val baseUrl: String,
+    private val baseUrl: String = GatewayConfig.BASE_URL,
     private val connectTimeoutMs: Int = 8_000,
     private val readTimeoutMs: Int = 15_000
 ) {
