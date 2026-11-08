@@ -22,7 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 
-private const val POCKET_OPTION_HOME = "https://pocketoption.com/cabinet/"
+private const val POCKET_OPTION_HOME = "https://pocketoption.com/en/"
 
 private fun safeDiagnosticText(raw: String, limit: Int = 180): String {
     val withoutUrls = raw.replace(Regex("https?://[^\\s]+")) { match ->
@@ -47,7 +47,6 @@ fun PocketOptionWebView(
     val context = LocalContext.current
     val currentOnStatus = rememberUpdatedState(onStatus)
     val currentOnWebView = rememberUpdatedState(onWebView)
-    val popupViews = remember(context, reloadKey) { mutableListOf<WebView>() }
     val reportStatus: (String) -> Unit = { message -> currentOnStatus.value.invoke(message) }
 
     key(reloadKey) {
@@ -66,10 +65,10 @@ fun PocketOptionWebView(
                     databaseEnabled = true
                     loadsImagesAutomatically = true
                     javaScriptCanOpenWindowsAutomatically = true
-                    setSupportMultipleWindows(true)
+                    setSupportMultipleWindows(false)
                     allowFileAccess = false
                     allowContentAccess = false
-                    mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                    mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                     cacheMode = WebSettings.LOAD_DEFAULT
                     mediaPlaybackRequiresUserGesture = false
                     builtInZoomControls = false
@@ -111,53 +110,10 @@ fun PocketOptionWebView(
                         isUserGesture: Boolean,
                         resultMsg: android.os.Message
                     ): Boolean {
-                        // Pocket Option may open the trading terminal/chart with target="_blank".
-                        // Route that HTTPS window into the visible primary WebView instead of
-                        // leaving it in an invisible secondary WebView or rejecting it.
-                        val popup = WebView(context)
-                        popupViews.add(popup)
-                        popup.setBackgroundColor(android.graphics.Color.rgb(8, 13, 19))
-                        popup.settings.apply {
-                            javaScriptEnabled = true
-                            domStorageEnabled = true
-                            javaScriptCanOpenWindowsAutomatically = true
-                            setSupportMultipleWindows(false)
-                            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                            allowFileAccess = false
-                            allowContentAccess = false
-                        }
-                        CookieManager.getInstance().setAcceptThirdPartyCookies(popup, true)
-                        popup.webViewClient = object : WebViewClient() {
-                            override fun shouldOverrideUrlLoading(
-                                popupView: WebView,
-                                request: WebResourceRequest
-                            ): Boolean {
-                                val target = request.url
-                                if (target.scheme.equals("about", ignoreCase = true)) return false
-                                if (target.scheme.equals("https", ignoreCase = true)) {
-                                    reportStatus("Открываем торговый терминал и график…")
-                                    primaryWebView.post { primaryWebView.loadUrl(target.toString()) }
-                                } else {
-                                    reportStatus("Заблокировано небезопасное окно: ${target.scheme ?: "unknown"}.")
-                                }
-                                popupViews.remove(popupView)
-                                popupView.post {
-                                    popupView.stopLoading()
-                                    popupView.destroy()
-                                }
-                                return true
-                            }
-                        }
-                        popup.webChromeClient = object : WebChromeClient() {}
-                        val transport = resultMsg.obj as? WebView.WebViewTransport ?: run {
-                            popupViews.remove(popup)
-                            popup.destroy()
-                            return false
-                        }
-                        transport.webView = popup
-                        resultMsg.sendToTarget()
-                        reportStatus("Подключаем отдельное окно торгового терминала…")
-                        return true
+                        // Match the previously working embedded Pocket Option WebView behavior.
+                        // The broker's normal in-page navigation remains in the primary WebView.
+                        reportStatus("Отдельное окно сайта не открывается; продолжаем в основном окне.")
+                        return false
                     }
                 }
 
@@ -167,14 +123,11 @@ fun PocketOptionWebView(
                         request: WebResourceRequest
                     ): Boolean {
                         val uri = request.url
-                        // Authentication, trading and chart modules can use different HTTPS hosts.
-                        // Allow HTTPS redirects; continue blocking cleartext and non-web schemes.
-                        val allowed = uri.scheme.equals("https", ignoreCase = true)
+                        // Restore the known-working Pocket Option host policy from builds #90-115.
+                        val allowed = uri.scheme.equals("https", ignoreCase = true) &&
+                            (uri.host == "pocketoption.com" || uri.host?.endsWith(".pocketoption.com") == true)
                         if (!allowed) {
-                            reportStatus(
-                                "Заблокирован небезопасный переход: " +
-                                    (uri.scheme ?: "неизвестная схема") + "."
-                            )
+                            reportStatus("Заблокирован переход на " + (uri.host ?: "неизвестный адрес") + ".")
                         }
                         return !allowed
                     }
@@ -244,10 +197,6 @@ fun PocketOptionWebView(
             currentOnWebView.value.invoke(webView)
             onDispose {
                 currentOnWebView.value.invoke(null)
-                popupViews.toList().forEach { popup ->
-                    runCatching { popup.stopLoading(); popup.destroy() }
-                }
-                popupViews.clear()
                 webView.stopLoading()
                 webView.destroy()
             }
