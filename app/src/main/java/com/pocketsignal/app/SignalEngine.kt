@@ -5,30 +5,48 @@ import kotlin.math.max
 
 /**
  * Deterministic technical-analysis baseline for the future combined_ml pipeline.
- * This is NOT a trained ML model. Do not enable live signals before a verified
- * data adapter is connected and the strategy has been back-tested.
+ *
+ * This is not a trained ML model and its score is not a win probability.
+ * Only completed, validated candles may be analyzed. A verified market-data
+ * adapter and out-of-sample backtest are required before live signals are enabled.
  */
 class SignalEngine(
     private val minimumConfidence: Int = 72,
-    private val minimumCandles: Int = 30
+    private val minimumCandles: Int = 35
 ) {
     fun analyze(input: List<Candle>): SignalDecision {
-        val candles = input.filter { c ->
-            c.timestampMillis > 0L && c.open > 0.0 && c.high > 0.0 && c.low > 0.0 && c.close > 0.0 &&
-                c.high >= max(c.open, c.close) && c.low <= minOf(c.open, c.close) && c.high >= c.low
-        }.sortedBy { it.timestampMillis }.distinctBy { it.timestampMillis }
-
-        if (candles.size < minimumCandles) {
-            return noSignal("Недостаточно свечей: требуется минимум $minimumCandles, получено ${candles.size}.")
+        if (input.size < minimumCandles) {
+            return noSignal("Недостаточно свечей: требуется минимум $minimumCandles, получено ${input.size}.")
         }
 
-        val closes = candles.map { it.close }
+        // Do not sort, deduplicate, or silently discard bad candles: doing so can
+        // hide a broken feed and produce a plausible-looking but invalid signal.
+        for (index in input.indices) {
+            val candle = input[index]
+            val valid = candle.timestampMillis > 0L &&
+                candle.open.isFinite() && candle.high.isFinite() &&
+                candle.low.isFinite() && candle.close.isFinite() &&
+                candle.open > 0.0 && candle.high > 0.0 &&
+                candle.low > 0.0 && candle.close > 0.0 &&
+                candle.high >= max(candle.open, candle.close) &&
+                candle.low <= minOf(candle.open, candle.close) &&
+                candle.high >= candle.low &&
+                candle.volume.isFinite() && candle.volume >= 0.0
+            if (!valid) {
+                return noSignal("Обнаружена некорректная свеча. Анализ остановлен.")
+            }
+            if (index > 0 && candle.timestampMillis <= input[index - 1].timestampMillis) {
+                return noSignal("Нарушен порядок времени или обнаружен повтор свечи.")
+            }
+        }
+
+        val closes = input.map { it.close }
         val fast = ema(closes, 9)
         val slow = ema(closes, 21)
-        val rsiValue = rsi(closes, 14)
-        val atrValue = atr(candles, 14)
-        val last = candles.last()
-        val previous = candles[candles.lastIndex - 1]
+        val rsiValue = rsiWilder(closes, 14)
+        val atrValue = atrWilder(input, 14)
+        val last = input.last()
+        val previous = input[input.lastIndex - 1]
 
         if (atrValue <= 0.0 || !atrValue.isFinite() || !rsiValue.isFinite()) {
             return noSignal("Недостаточная волатильность или некорректные данные.")
@@ -40,11 +58,15 @@ class SignalEngine(
 
         val up = fast > slow
         val down = fast < slow
-        val momentumUp = last.close > previous.close && previous.close > candles[candles.lastIndex - 2].close
-        val momentumDown = last.close < previous.close && previous.close < candles[candles.lastIndex - 2].close
+        val momentumUp = last.close > previous.close &&
+            previous.close > input[input.lastIndex - 2].close
+        val momentumDown = last.close < previous.close &&
+            previous.close < input[input.lastIndex - 2].close
         val strongTrend = abs(fast - slow) / atrValue >= 0.15
-        val bullishBody = last.close > last.open && (last.close - last.open) / atrValue >= 0.20
-        val bearishBody = last.close < last.open && (last.open - last.close) / atrValue >= 0.20
+        val bullishBody = last.close > last.open &&
+            (last.close - last.open) / atrValue >= 0.20
+        val bearishBody = last.close < last.open &&
+            (last.open - last.close) / atrValue >= 0.20
 
         var callScore = 0
         var putScore = 0
@@ -65,36 +87,84 @@ class SignalEngine(
 
         val best = max(callScore, putScore)
         if (best < minimumConfidence || abs(callScore - putScore) < 18) {
-            return SignalDecision(null, best, 1, listOf("Фильтр SELECTIVE: недостаточно сильное или однозначное совпадение факторов."), false, "Сильного сигнала нет — пропуск сделки.")
+            return SignalDecision(
+                null,
+                best,
+                1,
+                listOf("Фильтр SELECTIVE: недостаточно сильное или однозначное совпадение факторов."),
+                false,
+                "Сильного сигнала нет — пропуск сделки."
+            )
         }
+
         val direction = if (callScore > putScore) SignalDirection.CALL else SignalDirection.PUT
         val reasons = if (direction == SignalDirection.CALL) callReasons else putReasons
         val trendStrength = abs(fast - slow) / atrValue
-        val expiration = when { best >= 86 && trendStrength >= 0.8 -> 3; best >= 80 && trendStrength >= 0.5 -> 2; else -> 1 }
-        return SignalDecision(direction, best.coerceAtMost(95), expiration, reasons, true, "Кандидат сигнала рассчитан. Требуется проверка на исторических данных.")
+        val expiration = when {
+            best >= 86 && trendStrength >= 0.8 -> 3
+            best >= 80 && trendStrength >= 0.5 -> 2
+            else -> 1
+        }
+        return SignalDecision(
+            direction,
+            best.coerceAtMost(95),
+            expiration,
+            reasons,
+            true,
+            "Кандидат рассчитан на закрытых свечах; требуется проверка на исторических данных."
+        )
     }
 
-    private fun noSignal(message: String) = SignalDecision(null, 0, 1, emptyList(), false, message)
+    private fun noSignal(message: String) =
+        SignalDecision(null, 0, 1, emptyList(), false, message)
+
+    /** EMA with an SMA seed, reducing initialization bias on short histories. */
     private fun ema(values: List<Double>, period: Int): Double {
+        val seed = values.take(period).average()
         val alpha = 2.0 / (period + 1.0)
-        return values.drop(1).fold(values.first()) { previous, value -> alpha * value + (1.0 - alpha) * previous }
-    }
-    private fun rsi(values: List<Double>, period: Int): Double {
-        var gains = 0.0; var losses = 0.0
-        for (i in values.size - period until values.size) {
-            val change = values[i] - values[i - 1]
-            if (change > 0.0) gains += change else losses -= change
+        return values.drop(period).fold(seed) { previous, value ->
+            alpha * value + (1.0 - alpha) * previous
         }
-        val averageGain = gains / period; val averageLoss = losses / period
+    }
+
+    /** Wilder-smoothed RSI(14), rather than a simple average of only the last 14 moves. */
+    private fun rsiWilder(values: List<Double>, period: Int): Double {
+        var averageGain = 0.0
+        var averageLoss = 0.0
+        for (index in 1..period) {
+            val change = values[index] - values[index - 1]
+            averageGain += max(change, 0.0)
+            averageLoss += max(-change, 0.0)
+        }
+        averageGain /= period
+        averageLoss /= period
+
+        for (index in period + 1 until values.size) {
+            val change = values[index] - values[index - 1]
+            averageGain = (averageGain * (period - 1) + max(change, 0.0)) / period
+            averageLoss = (averageLoss * (period - 1) + max(-change, 0.0)) / period
+        }
+
         if (averageLoss == 0.0) return if (averageGain == 0.0) 50.0 else 100.0
-        val rs = averageGain / averageLoss
-        return 100.0 - 100.0 / (1.0 + rs)
+        val relativeStrength = averageGain / averageLoss
+        return 100.0 - 100.0 / (1.0 + relativeStrength)
     }
-    private fun atr(candles: List<Candle>, period: Int): Double {
-        val ranges = (1 until candles.size).map { i ->
-            val c = candles[i]; val previousClose = candles[i - 1].close
-            max(c.high - c.low, max(abs(c.high - previousClose), abs(c.low - previousClose)))
+
+    /** Wilder-smoothed ATR(14) based on true range, including previous-close gaps. */
+    private fun atrWilder(candles: List<Candle>, period: Int): Double {
+        val trueRanges = (1 until candles.size).map { index ->
+            val candle = candles[index]
+            val previousClose = candles[index - 1].close
+            max(
+                candle.high - candle.low,
+                max(abs(candle.high - previousClose), abs(candle.low - previousClose))
+            )
         }
-        return ranges.takeLast(period).average()
+        if (trueRanges.size < period) return 0.0
+        var value = trueRanges.take(period).average()
+        for (index in period until trueRanges.size) {
+            value = (value * (period - 1) + trueRanges[index]) / period
+        }
+        return value
     }
 }
