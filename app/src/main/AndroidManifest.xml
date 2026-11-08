@@ -4,7 +4,7 @@
     <application
         android:allowBackup="false"
         android:hardwareAccelerated="true"
-        android:label="Pocket Signal"
+        android:label="Pocket Signal GPT"
         android:usesCleartextTraffic="false"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:supportsRtl="true">
