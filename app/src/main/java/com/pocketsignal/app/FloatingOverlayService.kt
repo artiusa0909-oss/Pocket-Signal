@@ -212,7 +212,7 @@ class FloatingOverlayService : Service() {
             textSize = 14f
             setTextColor(Color.WHITE)
             setHintTextColor(Color.rgb(137, 153, 169))
-            singleLine = false
+            setSingleLine(false)
             maxLines = 3
             imeOptions = EditorInfo.IME_ACTION_SEND
             background = rounded(Color.rgb(27, 39, 52), dp(12), Color.rgb(57, 75, 91))
