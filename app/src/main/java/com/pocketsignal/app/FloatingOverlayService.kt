@@ -265,7 +265,7 @@ class FloatingOverlayService : Service() {
         val previousHistory = history.toList()
         thread(name = "PocketSignalChat") {
             try {
-                val response = requestGateway(endpoint, message, previousHistory)
+                val response = requestGateway(endpoint, gatewayToken(), message, previousHistory)
                 mainHandler.post {
                     history.add("user" to message)
                     history.add("assistant" to response)
@@ -285,6 +285,7 @@ class FloatingOverlayService : Service() {
 
     private fun requestGateway(
         baseUrl: String,
+        accessToken: String,
         message: String,
         previousHistory: List<Pair<String, String>>
     ): String {
@@ -297,6 +298,7 @@ class FloatingOverlayService : Service() {
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             connection.setRequestProperty("Accept", "application/json")
+            connection.setRequestProperty("Authorization", "Bearer $accessToken")
 
             val messages = JSONArray()
             (previousHistory + listOf("user" to message)).takeLast(20).forEach { (role, text) ->
@@ -323,6 +325,9 @@ class FloatingOverlayService : Service() {
 
     private fun gatewayUrl(): String =
         getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_GATEWAY, "").orEmpty().trim()
+
+    private fun gatewayToken(): String =
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_GATEWAY_TOKEN, "").orEmpty().trim()
 
     private fun appendMessage(role: String, text: String, remember: Boolean = true) {
         val container = chatMessages ?: return
@@ -456,5 +461,6 @@ class FloatingOverlayService : Service() {
         private const val NOTIFICATION_ID = 2401
         const val PREFS = "pocket_signal_prefs"
         const val KEY_GATEWAY = "gpt_gateway_url"
+        const val KEY_GATEWAY_TOKEN = "gpt_gateway_token"
     }
 }
