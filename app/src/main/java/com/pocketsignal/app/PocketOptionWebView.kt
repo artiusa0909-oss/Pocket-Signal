@@ -24,9 +24,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 
 private const val POCKET_OPTION_HOME = "https://pocketoption.com/cabinet/"
 
-private fun isPocketOptionHost(host: String?): Boolean =
-    host == "pocketoption.com" || host?.endsWith(".pocketoption.com") == true
-
 private fun safeDiagnosticText(raw: String, limit: Int = 180): String {
     val withoutUrls = raw.replace(Regex("https?://[^\\s]+")) { match ->
         runCatching {
@@ -70,7 +67,7 @@ fun PocketOptionWebView(
                     setSupportMultipleWindows(false)
                     allowFileAccess = false
                     allowContentAccess = false
-                    mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                    mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
                     cacheMode = WebSettings.LOAD_DEFAULT
                     mediaPlaybackRequiresUserGesture = false
                     builtInZoomControls = false
@@ -123,12 +120,13 @@ fun PocketOptionWebView(
                         request: WebResourceRequest
                     ): Boolean {
                         val uri = request.url
-                        val allowed = uri.scheme == "https" && isPocketOptionHost(uri.host)
+                        // Authentication, trading and chart modules can use different HTTPS hosts.
+                        // Allow HTTPS redirects; continue blocking cleartext and non-web schemes.
+                        val allowed = uri.scheme.equals("https", ignoreCase = true)
                         if (!allowed) {
                             reportStatus(
-                                "Заблокирован переход на " +
-                                    (uri.host ?: "неизвестный адрес") +
-                                    ". Проверим домен перед добавлением."
+                                "Заблокирован небезопасный переход: " +
+                                    (uri.scheme ?: "неизвестная схема") + "."
                             )
                         }
                         return !allowed
