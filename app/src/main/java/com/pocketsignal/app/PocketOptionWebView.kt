@@ -22,7 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 
-private const val POCKET_OPTION_HOME = "https://pocketoption.com/en/"
+private const val POCKET_OPTION_HOME = "https://pocketoption.com/cabinet/"
 
 private fun isPocketOptionHost(host: String?): Boolean =
     host == "pocketoption.com" || host?.endsWith(".pocketoption.com") == true
