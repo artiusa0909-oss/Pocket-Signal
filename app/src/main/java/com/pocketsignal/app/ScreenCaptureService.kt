@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * User-consented, on-device screen reader for the Pocket Option app/window.
- * It performs OCR locally; no screenshot or recognized text is sent to a server.
+ * OCR parsing is local; raw screenshots and recognized account text are discarded.
  */
 class ScreenCaptureService : Service() {
     companion object {
@@ -132,7 +132,7 @@ class ScreenCaptureService : Service() {
                 null,
                 workerHandler
             )
-            ScreenCaptureState.status = "Экран подключён · распознавание котировок"
+            ScreenCaptureState.status = "Экран подключён · анализ текста"
             ScreenCaptureState.lastFrameAtMillis = System.currentTimeMillis()
         } catch (e: Exception) {
             ScreenCaptureState.status = "Ошибка захвата: ${e.javaClass.simpleName}"
@@ -151,13 +151,22 @@ class ScreenCaptureService : Service() {
         lastOcrAt = now
         recognizer.process(InputImage.fromBitmap(bitmap, 0))
             .addOnSuccessListener { result ->
-                // Keep only the OCR length, not personal/account text, in shared state.
+                // Parse in memory, then retain only a possible asset and price.
+                val snapshot = PocketOptionOcrParser.parse(result.text)
                 ScreenCaptureState.recognizedTextLength = result.text.length
+                ScreenCaptureState.detectedAsset = snapshot.asset.orEmpty()
+                ScreenCaptureState.detectedPrice = snapshot.priceText.orEmpty()
                 ScreenCaptureState.lastFrameAtMillis = System.currentTimeMillis()
-                ScreenCaptureState.status = if (result.text.isNotBlank()) {
-                    "Экран читается · OCR: ${result.text.length} знаков"
-                } else {
-                    "Экран захвачен · текст пока не распознан"
+                ScreenCaptureState.status = when {
+                    snapshot.asset != null && snapshot.priceText != null ->
+                        "OCR-кандидат: ${snapshot.asset} · ${snapshot.priceText} (требует проверки)"
+                    snapshot.asset != null ->
+                        "Актив распознан: ${snapshot.asset} · цена неоднозначна"
+                    snapshot.priceText != null ->
+                        "Число распознано: ${snapshot.priceText} · актив не определён"
+                    result.text.isNotBlank() ->
+                        "Экран читается · цена не определена однозначно"
+                    else -> "Экран захвачен · текст пока не распознан"
                 }
             }
             .addOnFailureListener {
