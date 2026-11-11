@@ -63,10 +63,6 @@ class FloatingSignalService : Service() {
             gravity = Gravity.CENTER_VERTICAL
         }
         val title = text("POCKET SIGNAL AI", 13f, Color.WHITE, true)
-        val toggle = Button(this).apply {
-            this.text = "−"
-            setOnClickListener { setExpanded(root, body, close, this) }
-        }
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
@@ -77,6 +73,10 @@ class FloatingSignalService : Service() {
         val close = Button(this).apply {
             this.text = "ЗАКРЫТЬ"
             setOnClickListener { stopSelf() }
+        }
+        val toggle = Button(this).apply {
+            this.text = "−"
+            setOnClickListener { setExpanded(root, body, close, this) }
         }
 
         header.addView(title, LinearLayout.LayoutParams(0, dp(40), 1f))
