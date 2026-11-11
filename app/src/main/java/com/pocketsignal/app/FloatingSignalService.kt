@@ -8,6 +8,8 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -26,6 +28,14 @@ class FloatingSignalService : Service() {
     private var panel: LinearLayout? = null
     private lateinit var params: WindowManager.LayoutParams
     private var expanded = true
+    private val statusHandler = Handler(Looper.getMainLooper())
+    private var captureStatusView: TextView? = null
+    private val statusRefresh = object : Runnable {
+        override fun run() {
+            captureStatusView?.text = ScreenCaptureState.status
+            statusHandler.postDelayed(this, 1000L)
+        }
+    }
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).roundToInt()
@@ -34,6 +44,7 @@ class FloatingSignalService : Service() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         showPanel()
+        statusHandler.post(statusRefresh)
     }
 
     private fun text(value: String, size: Float, color: Int, bold: Boolean = false) =
@@ -70,6 +81,17 @@ class FloatingSignalService : Service() {
         body.addView(text("Таймфрейм: M1", 10f, Color.LTGRAY))
         body.addView(text("CALL / PUT: нет сигнала", 12f, Color.WHITE, true))
         body.addView(text("Нет проверенного потока котировок", 9f, Color.rgb(255, 194, 102)))
+        captureStatusView = text(ScreenCaptureState.status, 9f, Color.rgb(32, 214, 154))
+        body.addView(captureStatusView)
+        val connect = Button(this).apply {
+            this.text = "ПОДКЛЮЧИТЬ POCKET OPTION"
+            setOnClickListener {
+                startActivity(
+                    Intent(this@FloatingSignalService, ScreenCaptureActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }
+        }
         val close = Button(this).apply {
             this.text = "ЗАКРЫТЬ"
             setOnClickListener { stopSelf() }
@@ -83,6 +105,7 @@ class FloatingSignalService : Service() {
         header.addView(toggle, LinearLayout.LayoutParams(dp(48), dp(40)))
         root.addView(header)
         root.addView(body)
+        root.addView(connect)
         root.addView(close)
 
         val drag = object : View.OnTouchListener {
@@ -157,6 +180,8 @@ class FloatingSignalService : Service() {
     override fun onDestroy() {
         panel?.let { windowManager.removeView(it) }
         panel = null
+        statusHandler.removeCallbacks(statusRefresh)
+        captureStatusView = null
         super.onDestroy()
     }
 
