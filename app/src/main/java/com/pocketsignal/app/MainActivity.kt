@@ -1,12 +1,18 @@
 package com.pocketsignal.app
 
 import android.os.Bundle
+import android.app.Activity
+import android.content.Context
+import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -77,6 +83,28 @@ fun PocketSignalScreen() {
     var assetMenuExpanded by remember { mutableStateOf(false) }
     var statusMessage by remember {
         mutableStateOf("Ожидание подключения к источнику котировок")
+    }
+    val projectionManager = remember {
+        context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+    }
+    val captureLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val data = result.data
+        if (result.resultCode == Activity.RESULT_OK && data != null) {
+            val captureIntent = Intent(context, ScreenCaptureService::class.java).apply {
+                putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
+                putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(captureIntent)
+            } else {
+                context.startService(captureIntent)
+            }
+            statusMessage = "Захват запущен. Выбери окно Pocket Option в системном окне Android."
+        } else {
+            statusMessage = "Подключение отменено. Котировки не получены."
+        }
     }
 
     val assets = listOf(
@@ -208,6 +236,23 @@ fun PocketSignalScreen() {
                     )
                 }
             }
+
+            Button(
+                onClick = {
+                    captureLauncher.launch(projectionManager.createScreenCaptureIntent())
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent)
+            ) {
+                Text("ПОДКЛЮЧИТЬ POCKET OPTION", color = Color(0xFF07130F), fontWeight = FontWeight.Bold)
+            }
+
+            Text(
+                "Захват выбранного окна обрабатывается локально на телефоне. Снимки экрана не отправляются на сервер.",
+                color = Muted,
+                fontSize = 10.sp
+            )
 
             Button(
                 onClick = {
