@@ -1,6 +1,10 @@
 package com.pocketsignal.app
 
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.compose.ui.platform.LocalContext
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
@@ -68,6 +72,7 @@ private val demoCandles = listOf(
 
 @Composable
 fun PocketSignalScreen() {
+    val context = LocalContext.current
     var selectedAsset by remember { mutableStateOf("EUR/USD OTC") }
     var assetMenuExpanded by remember { mutableStateOf(false) }
     var statusMessage by remember {
@@ -206,13 +211,20 @@ fun PocketSignalScreen() {
 
             Button(
                 onClick = {
-                    statusMessage = "Анализ не запущен: источник реальных котировок ещё не подключён."
+                    if (!Settings.canDrawOverlays(context)) {
+                        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
+                        context.startActivity(intent)
+                        statusMessage = "Разреши отображение поверх других приложений, затем нажми кнопку ещё раз."
+                    } else {
+                        context.startService(Intent(context, FloatingSignalService::class.java))
+                        statusMessage = "Плавающая панель запущена. Реальные котировки пока не подключены."
+                    }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Accent)
             ) {
-                Text("ПРОВЕРИТЬ ПОДКЛЮЧЕНИЕ", color = Color(0xFF07130F), fontWeight = FontWeight.Bold)
+                Text("ЗАПУСТИТЬ ПЛАВАЮЩЕЕ ОКНО", color = Color(0xFF07130F), fontWeight = FontWeight.Bold)
             }
 
             Text(
