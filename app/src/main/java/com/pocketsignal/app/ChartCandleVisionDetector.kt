@@ -162,7 +162,7 @@ object ChartCandleVisionDetector {
         // on a relative pixel-price scale. Direction and candle structure remain usable;
         // the UI still reports that absolute price calibration is unavailable.
         val mapping = fitPriceScale(axisTicks)
-        val (intercept, slope) = mapping ?: ((yEnd + 1000.0) to -1.0)
+        val (intercept, slope) = mapping ?: (1000.0 to -0.01)
         val bars = detected.mapIndexedNotNull { index, c ->
             fun price(y: Int) = intercept + slope * y
             val high = price(c.highY)
