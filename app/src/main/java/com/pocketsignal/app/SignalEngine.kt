@@ -9,8 +9,8 @@ import kotlin.math.min
  * Confidence is a confluence score, NOT a calibrated win probability.
  */
 class SignalEngine(
-    private val minimumConfidence: Int = 70,
-    private val minimumCandles: Int = 12
+    private val minimumConfidence: Int = 68,
+    private val minimumCandles: Int = 3
 ) {
     fun analyze(input: List<Candle>): SignalDecision {
         val candles = input.filter { c ->
@@ -23,11 +23,20 @@ class SignalEngine(
             return noSignal("Нужно минимум $minimumCandles корректных свечей M1, сейчас ${candles.size}.")
         }
 
-        val longHistory = candles.size >= 25
-        val fastPeriod = if (longHistory) 9 else 5
-        val slowPeriod = if (longHistory) 21 else 9
-        val rsiPeriod = if (longHistory) 14 else 7
-        val atrPeriod = if (longHistory) 14 else 7
+        // Adapt indicator windows to the candles already visible on screen.
+        // Three valid candles are enough for an initial directional assessment.
+        val fastPeriod = when {
+            candles.size >= 25 -> 9
+            candles.size >= 12 -> 5
+            else -> 2
+        }
+        val slowPeriod = when {
+            candles.size >= 25 -> 21
+            candles.size >= 12 -> 9
+            else -> 3
+        }
+        val rsiPeriod = (candles.size - 1).coerceAtMost(if (candles.size >= 25) 14 else 7).coerceAtLeast(2)
+        val atrPeriod = (candles.size - 1).coerceAtMost(if (candles.size >= 25) 14 else 7).coerceAtLeast(2)
 
         val closes = candles.map { it.close }
         val fast = ema(closes, fastPeriod)
