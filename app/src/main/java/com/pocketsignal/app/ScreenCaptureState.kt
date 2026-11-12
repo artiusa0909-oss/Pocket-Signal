@@ -14,6 +14,8 @@ object ScreenCaptureState {
     @Volatile var chartCalibration = "Шкала цены не откалибрована"
     @Volatile var signalText = "НЕТ СИГНАЛА"
     @Volatile var signalConfidence = 0
+    @Volatile var upProbability = 50
+    @Volatile var downProbability = 50
     @Volatile var signalExpiryMinutes = 1
     @Volatile var signalReasons = "Ожидание проверенных котировок"
 }
