@@ -97,6 +97,14 @@ fun PocketSignalScreen() {
             delay(1000L)
         }
     }
+    val liveAiScores by produceState(
+        initialValue = Pair(ScreenCaptureState.aiUpScore, ScreenCaptureState.aiDownScore)
+    ) {
+        while (true) {
+            value = Pair(ScreenCaptureState.aiUpScore, ScreenCaptureState.aiDownScore)
+            delay(1000L)
+        }
+    }
     var selectedAsset by remember { mutableStateOf("EUR/USD OTC") }
     var assetMenuExpanded by remember { mutableStateOf(false) }
     var statusMessage by remember {
@@ -272,7 +280,7 @@ fun PocketSignalScreen() {
                         "PUT" -> "ВНИЗ"
                         else -> "НЕТ НАДЁЖНОГО СИГНАЛА"
                     }, color = Color.White, fontWeight = FontWeight.SemiBold)
-                    Text("ВВЕРХ — ${ScreenCaptureState.aiUpScore}%  ·  ВНИЗ — ${ScreenCaptureState.aiDownScore}%", color = Color.LightGray, fontSize = 12.sp)
+                    Text("ВВЕРХ — ${liveAiScores.first}%  ·  ВНИЗ — ${liveAiScores.second}%", color = Color.LightGray, fontSize = 12.sp)
                     Text(liveAi.third, color = Color.LightGray, fontSize = 12.sp)
                     if (ScreenCaptureState.aiRisks.isNotBlank()) {
                         Text("Риски: ${ScreenCaptureState.aiRisks}", color = Color(0xFFFFC266), fontSize = 11.sp)
@@ -315,7 +323,7 @@ fun PocketSignalScreen() {
             }
 
             Text(
-                "Захват выбранного окна обрабатывается локально на телефоне. Снимки экрана не отправляются на сервер.",
+                "Локальный анализ выполняется на телефоне. При настроенном OpenAI-сервере обрезанный участок графика отправляется туда для дополнительного анализа.",
                 color = Muted,
                 fontSize = 10.sp
             )
