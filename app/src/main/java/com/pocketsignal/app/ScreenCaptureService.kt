@@ -35,7 +35,7 @@ class ScreenCaptureService : Service() {
     private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
     private val processing = AtomicBoolean(false)
     private val aggregator = OcrMinuteCandleAggregator()
-    private val engine = SignalEngine(minimumConfidence = 70, minimumCandles = 12)
+    private val engine = SignalEngine(minimumConfidence = 68, minimumCandles = 3)
     @Volatile private var lastProcessedAt = 0L
     @Volatile private var lastAssetSeenAt = 0L
 
@@ -142,7 +142,10 @@ class ScreenCaptureService : Service() {
 
                         // Vision-derived candles are used only when the visible chart scale can be
                         // calibrated from at least two OCR price-axis labels. This avoids fabricated OHLC.
-                        val analysisCandles = if (vision.calibrated && parsed.isM1Chart) vision.candles else ocrCandles
+                        // Prefer candles already visible on the M1 chart, even when OCR
+                        // cannot calibrate the absolute price axis. Relative geometry is enough
+                        // for candle-pattern and directional analysis.
+                        val analysisCandles = if (vision.candles.size >= 3 && parsed.isM1Chart) vision.candles else ocrCandles
                         ScreenCaptureState.candleCount = analysisCandles.size
                         val decision = engine.analyze(analysisCandles)
                         if (decision.ready && decision.direction != null) {
@@ -155,9 +158,11 @@ class ScreenCaptureService : Service() {
                             ScreenCaptureState.signalText = "НЕТ СИГНАЛА"
                             ScreenCaptureState.signalConfidence = 0
                             ScreenCaptureState.signalExpiryMinutes = 1
-                            ScreenCaptureState.signalReasons = if (!vision.calibrated)
-                                "Визуально найдено свечей: ${vision.visibleCandleCount}. Для OHLC нужна точная шкала цены."
-                            else decision.message
+                            ScreenCaptureState.signalReasons = when {
+                                vision.candles.size >= 3 && !vision.calibrated ->
+                                    "Свечи читаются по форме; абсолютная шкала цены не распознана. " + decision.message
+                                else -> decision.message
+                            }
                             ScreenCaptureState.status = "Котировка ${asset}: ${price} · на графике свечей: ${vision.visibleCandleCount}"
                         }
                     }
