@@ -18,4 +18,12 @@ object ScreenCaptureState {
     @Volatile var downProbability = 50
     @Volatile var signalExpiryMinutes = 1
     @Volatile var signalReasons = "Ожидание проверенных котировок"
+    @Volatile var aiStatus = "ИИ не подключён"
+    @Volatile var aiDirection = "WAIT"
+    @Volatile var aiUpScore = 50
+    @Volatile var aiDownScore = 50
+    @Volatile var aiConfidence = 0
+    @Volatile var aiExpiryMinutes = 1
+    @Volatile var aiSummary = "Настройте адрес ИИ-сервера"
+    @Volatile var aiRisks = ""
 }
