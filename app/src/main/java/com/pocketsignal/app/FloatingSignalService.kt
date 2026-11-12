@@ -30,6 +30,8 @@ class FloatingSignalService : Service() {
     private var quoteView: TextView? = null
     private var candlesView: TextView? = null
     private var movementView: TextView? = null
+    private var upView: TextView? = null
+    private var downView: TextView? = null
     private var signalView: TextView? = null
     private var reasonView: TextView? = null
     private val refresh = object : Runnable {
@@ -39,7 +41,9 @@ class FloatingSignalService : Service() {
                 ScreenCaptureState.detectedPrice.ifBlank { "Цена не определена" }
             candlesView?.text = "Свечей на экране: ${ScreenCaptureState.visibleCandleCount}  ·  OHLC: ${ScreenCaptureState.candleCount}/30"
             movementView?.text = ScreenCaptureState.chartMovement + "  ·  " + ScreenCaptureState.chartCalibration
-            signalView?.text = ScreenCaptureState.signalText + "  ·  оценка " + ScreenCaptureState.signalConfidence + "%  ·  " +
+            upView?.text = "ВВЕРХ  ·  ${ScreenCaptureState.upProbability}%"
+            downView?.text = "ВНИЗ  ·  ${ScreenCaptureState.downProbability}%"
+            signalView?.text = ScreenCaptureState.signalText + "  ·  экспирация " +
                 ScreenCaptureState.signalExpiryMinutes + " мин"
             reasonView?.text = ScreenCaptureState.signalReasons
             handler.postDelayed(this, 500L)
@@ -64,9 +68,12 @@ class FloatingSignalService : Service() {
         quoteView = label("Актив и цена не определены", 12f, Color.WHITE, true)
         candlesView = label("Свечей на экране: 0  ·  OHLC: 0/30", 10f, Color.LTGRAY)
         movementView = label("ОЖИДАНИЕ ГРАФИКА", 10f, Color.rgb(32, 214, 154), true)
-        signalView = label("НЕТ СИГНАЛА  ·  оценка 0%", 13f, Color.WHITE, true)
-        reasonView = label("Ожидание анализа графика", 9f, Color.rgb(255, 194, 102))
-        body.addView(statusView); body.addView(quoteView); body.addView(candlesView); body.addView(movementView); body.addView(signalView); body.addView(reasonView)
+        upView = label("ВВЕРХ  ·  50%", 14f, Color.rgb(32, 214, 154), true)
+        downView = label("ВНИЗ  ·  50%", 14f, Color.rgb(255, 100, 124), true)
+        signalView = label("НЕТ СИГНАЛА  ·  экспирация 1 мин", 13f, Color.WHITE, true)
+        reasonView = label("Проценты показывают поддержку факторов, не гарантию выигрыша", 9f, Color.rgb(255, 194, 102))
+        body.addView(statusView); body.addView(quoteView); body.addView(candlesView); body.addView(movementView)
+        body.addView(upView); body.addView(downView); body.addView(signalView); body.addView(reasonView)
         val connect = Button(this).apply {
             text = "ПОДКЛЮЧИТЬ POCKET OPTION"
             setOnClickListener { startActivity(Intent(this@FloatingSignalService, ScreenCaptureActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
@@ -101,7 +108,8 @@ class FloatingSignalService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int { if (panel == null) showPanel(); return START_STICKY }
     override fun onDestroy() {
         panel?.let { wm.removeView(it) }; panel = null; handler.removeCallbacks(refresh)
-        statusView = null; quoteView = null; candlesView = null; movementView = null; signalView = null; reasonView = null
+        statusView = null; quoteView = null; candlesView = null; movementView = null
+        upView = null; downView = null; signalView = null; reasonView = null
         super.onDestroy()
     }
     override fun onBind(intent: Intent?): IBinder? = null
