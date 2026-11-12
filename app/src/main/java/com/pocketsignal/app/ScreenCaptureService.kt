@@ -147,6 +147,8 @@ class ScreenCaptureService : Service() {
                     val analysisCandles = if (hasVisibleM1Candles) vision.candles else ocrCandles
                     ScreenCaptureState.candleCount = analysisCandles.size
                     val decision = engine.analyze(analysisCandles)
+                    ScreenCaptureState.upProbability = decision.upProbability
+                    ScreenCaptureState.downProbability = decision.downProbability
                     if (decision.ready && decision.direction != null) {
                         ScreenCaptureState.signalText = if (decision.direction == SignalDirection.CALL) "ВВЕРХ" else "ВНИЗ"
                         ScreenCaptureState.signalConfidence = decision.confidence
@@ -155,7 +157,7 @@ class ScreenCaptureService : Service() {
                         ScreenCaptureState.status = "СИГНАЛ · ${decision.confidence}% · экспирация ${decision.expirationMinutes} мин"
                     } else {
                         ScreenCaptureState.signalText = "НЕТ СИГНАЛА"
-                        ScreenCaptureState.signalConfidence = 0
+                        ScreenCaptureState.signalConfidence = maxOf(decision.upProbability, decision.downProbability)
                         ScreenCaptureState.signalExpiryMinutes = 1
                         ScreenCaptureState.signalReasons = when {
                             hasVisibleM1Candles && !vision.calibrated ->
@@ -168,6 +170,10 @@ class ScreenCaptureService : Service() {
                             "График ${asset} · цена не распознана · свечей: ${vision.visibleCandleCount}"
                     }
                 } else {
+                    ScreenCaptureState.upProbability = 50
+                    ScreenCaptureState.downProbability = 50
+                    ScreenCaptureState.signalText = "НЕТ СИГНАЛА"
+                    ScreenCaptureState.signalConfidence = 0
                     ScreenCaptureState.status = when {
                         !freshAsset -> "График захвачен · ожидание валютной пары"
                         !parsed.isM1Chart -> "Актив ${asset} найден · выберите таймфрейм M1"
