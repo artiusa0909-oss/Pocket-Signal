@@ -88,6 +88,15 @@ fun PocketSignalScreen() {
             delay(500L)
         }
     }
+    var aiEndpoint by remember { mutableStateOf(ChartAiAnalyzer.loadEndpoint(context)) }
+    val liveAi by produceState(
+        initialValue = Triple(ScreenCaptureState.aiStatus, ScreenCaptureState.aiDirection, ScreenCaptureState.aiSummary)
+    ) {
+        while (true) {
+            value = Triple(ScreenCaptureState.aiStatus, ScreenCaptureState.aiDirection, ScreenCaptureState.aiSummary)
+            delay(1000L)
+        }
+    }
     var selectedAsset by remember { mutableStateOf("EUR/USD OTC") }
     var assetMenuExpanded by remember { mutableStateOf(false) }
     var statusMessage by remember {
@@ -244,6 +253,52 @@ fun PocketSignalScreen() {
                         "Проценты показывают относительную поддержку факторов на основе распознанных свечей, а не статистическую вероятность выигрыша.",
                         color = Muted,
                         fontSize = 11.sp
+                    )
+                }
+            }
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = PanelBg),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("ИИ-АНАЛИТИК OPENAI", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(liveAi.first, color = Accent, fontSize = 11.sp)
+                    Text("Вывод ИИ: " + when (liveAi.second) {
+                        "CALL" -> "ВВЕРХ"
+                        "PUT" -> "ВНИЗ"
+                        else -> "НЕТ НАДЁЖНОГО СИГНАЛА"
+                    }, color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text("ВВЕРХ — ${ScreenCaptureState.aiUpScore}%  ·  ВНИЗ — ${ScreenCaptureState.aiDownScore}%", color = Color.LightGray, fontSize = 12.sp)
+                    Text(liveAi.third, color = Color.LightGray, fontSize = 12.sp)
+                    if (ScreenCaptureState.aiRisks.isNotBlank()) {
+                        Text("Риски: ${ScreenCaptureState.aiRisks}", color = Color(0xFFFFC266), fontSize = 11.sp)
+                    }
+                    OutlinedTextField(
+                        value = aiEndpoint,
+                        onValueChange = { aiEndpoint = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Адрес ИИ-сервера") },
+                        placeholder = { Text("https://your-service.onrender.com") },
+                        singleLine = true
+                    )
+                    Button(
+                        onClick = {
+                            ChartAiAnalyzer.saveEndpoint(context, aiEndpoint)
+                            ScreenCaptureState.aiStatus = if (aiEndpoint.isBlank()) "ИИ не подключён" else "Адрес ИИ-сервера сохранён"
+                            statusMessage = "Адрес ИИ-сервера сохранён. Подключи график для анализа."
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("СОХРАНИТЬ ПОДКЛЮЧЕНИЕ ИИ")
+                    }
+                    Text(
+                        "Для анализа отправляется обрезанное изображение графика и OHLC на твой сервер. API-ключ хранится только на сервере.",
+                        color = Muted,
+                        fontSize = 10.sp
                     )
                 }
             }
