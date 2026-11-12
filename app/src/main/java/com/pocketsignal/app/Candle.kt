@@ -18,5 +18,7 @@ data class SignalDecision(
     val expirationMinutes: Int,
     val reasons: List<String>,
     val ready: Boolean,
-    val message: String
+    val message: String,
+    val upProbability: Int = 50,
+    val downProbability: Int = 50
 )
