@@ -130,44 +130,49 @@ class ScreenCaptureService : Service() {
                 }
                 val asset = ScreenCaptureState.detectedAsset
                 val freshAsset = asset.isNotBlank() && System.currentTimeMillis() - lastAssetSeenAt < 10_000L
-                val visualPrice = vision.candles.lastOrNull()?.close
-                val price = parsed.priceText ?: visualPrice?.toString()
-                if (freshAsset && price != null) {
-                    val value = price.toDoubleOrNull()
-                    if (value != null && value.isFinite() && value > 0.0) {
-                        val quoteTime = System.currentTimeMillis()
-                        val ocrCandles = aggregator.addTick(asset, value, quoteTime)
-                        ScreenCaptureState.detectedPrice = price
+                val quote = parsed.priceText?.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
+                val hasVisibleM1Candles = parsed.isM1Chart && vision.candles.size >= 3
+                if (freshAsset && (quote != null || hasVisibleM1Candles)) {
+                    val quoteTime = System.currentTimeMillis()
+                    val ocrCandles = if (quote != null) aggregator.addTick(asset, quote, quoteTime) else aggregator.snapshot()
+                    if (quote != null) {
+                        ScreenCaptureState.detectedPrice = parsed.priceText!!
                         ScreenCaptureState.lastQuoteAtMillis = quoteTime
+                    } else {
+                        ScreenCaptureState.detectedPrice = "Цена не распознана"
+                    }
 
-                        // Vision-derived candles are used only when the visible chart scale can be
-                        // calibrated from at least two OCR price-axis labels. This avoids fabricated OHLC.
-                        // Prefer candles already visible on the M1 chart, even when OCR
-                        // cannot calibrate the absolute price axis. Relative geometry is enough
-                        // for candle-pattern and directional analysis.
-                        val analysisCandles = if (vision.candles.size >= 3 && parsed.isM1Chart) vision.candles else ocrCandles
-                        ScreenCaptureState.candleCount = analysisCandles.size
-                        val decision = engine.analyze(analysisCandles)
-                        if (decision.ready && decision.direction != null) {
-                            ScreenCaptureState.signalText = if (decision.direction == SignalDirection.CALL) "ВВЕРХ" else "ВНИЗ"
-                            ScreenCaptureState.signalConfidence = decision.confidence
-                            ScreenCaptureState.signalExpiryMinutes = decision.expirationMinutes.coerceAtLeast(1)
-                            ScreenCaptureState.signalReasons = decision.reasons.joinToString(" · ")
-                            ScreenCaptureState.status = "СИГНАЛ · ${decision.confidence}% · экспирация ${decision.expirationMinutes} мин"
-                        } else {
-                            ScreenCaptureState.signalText = "НЕТ СИГНАЛА"
-                            ScreenCaptureState.signalConfidence = 0
-                            ScreenCaptureState.signalExpiryMinutes = 1
-                            ScreenCaptureState.signalReasons = when {
-                                vision.candles.size >= 3 && !vision.calibrated ->
-                                    "Свечи читаются по форме; абсолютная шкала цены не распознана. " + decision.message
-                                else -> decision.message
-                            }
-                            ScreenCaptureState.status = "Котировка ${asset}: ${price} · на графике свечей: ${vision.visibleCandleCount}"
+                    // Analyze the candles already drawn on the M1 chart immediately.
+                    // Do not mistake the relative pixel scale for a real market quote.
+                    val analysisCandles = if (hasVisibleM1Candles) vision.candles else ocrCandles
+                    ScreenCaptureState.candleCount = analysisCandles.size
+                    val decision = engine.analyze(analysisCandles)
+                    if (decision.ready && decision.direction != null) {
+                        ScreenCaptureState.signalText = if (decision.direction == SignalDirection.CALL) "ВВЕРХ" else "ВНИЗ"
+                        ScreenCaptureState.signalConfidence = decision.confidence
+                        ScreenCaptureState.signalExpiryMinutes = decision.expirationMinutes.coerceAtLeast(1)
+                        ScreenCaptureState.signalReasons = decision.reasons.joinToString(" · ")
+                        ScreenCaptureState.status = "СИГНАЛ · ${decision.confidence}% · экспирация ${decision.expirationMinutes} мин"
+                    } else {
+                        ScreenCaptureState.signalText = "НЕТ СИГНАЛА"
+                        ScreenCaptureState.signalConfidence = 0
+                        ScreenCaptureState.signalExpiryMinutes = 1
+                        ScreenCaptureState.signalReasons = when {
+                            hasVisibleM1Candles && !vision.calibrated ->
+                                "Свечи анализируются по форме; абсолютная шкала цены не распознана. " + decision.message
+                            else -> decision.message
                         }
+                        ScreenCaptureState.status = if (quote != null)
+                            "Котировка ${asset}: ${parsed.priceText} · свечей на графике: ${vision.visibleCandleCount}"
+                        else
+                            "График ${asset} · цена не распознана · свечей: ${vision.visibleCandleCount}"
                     }
                 } else {
-                    ScreenCaptureState.status = if (!freshAsset) "График захвачен · ожидание валютной пары" else "Актив ${asset} найден · цена не распознана однозначно"
+                    ScreenCaptureState.status = when {
+                        !freshAsset -> "График захвачен · ожидание валютной пары"
+                        !parsed.isM1Chart -> "Актив ${asset} найден · выберите таймфрейм M1"
+                        else -> "Актив ${asset} найден · ожидается распознавание цены или свечей"
+                    }
                 }
             }
             .addOnFailureListener {
