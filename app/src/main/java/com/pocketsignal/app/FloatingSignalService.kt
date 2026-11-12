@@ -39,7 +39,7 @@ class FloatingSignalService : Service() {
                 ScreenCaptureState.detectedPrice.ifBlank { "Цена не определена" }
             candlesView?.text = "Свечей на экране: ${ScreenCaptureState.visibleCandleCount}  ·  OHLC: ${ScreenCaptureState.candleCount}/30"
             movementView?.text = ScreenCaptureState.chartMovement + "  ·  " + ScreenCaptureState.chartCalibration
-            signalView?.text = ScreenCaptureState.signalText + "  ·  " + ScreenCaptureState.signalConfidence + "%  ·  " +
+            signalView?.text = ScreenCaptureState.signalText + "  ·  оценка " + ScreenCaptureState.signalConfidence + "%  ·  " +
                 ScreenCaptureState.signalExpiryMinutes + " мин"
             reasonView?.text = ScreenCaptureState.signalReasons
             handler.postDelayed(this, 500L)
@@ -64,7 +64,7 @@ class FloatingSignalService : Service() {
         quoteView = label("Актив и цена не определены", 12f, Color.WHITE, true)
         candlesView = label("Свечей на экране: 0  ·  OHLC: 0/30", 10f, Color.LTGRAY)
         movementView = label("ОЖИДАНИЕ ГРАФИКА", 10f, Color.rgb(32, 214, 154), true)
-        signalView = label("НЕТ СИГНАЛА", 13f, Color.WHITE, true)
+        signalView = label("НЕТ СИГНАЛА  ·  оценка 0%", 13f, Color.WHITE, true)
         reasonView = label("Ожидание анализа графика", 9f, Color.rgb(255, 194, 102))
         body.addView(statusView); body.addView(quoteView); body.addView(candlesView); body.addView(movementView); body.addView(signalView); body.addView(reasonView)
         val connect = Button(this).apply {

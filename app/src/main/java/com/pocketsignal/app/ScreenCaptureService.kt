@@ -35,7 +35,7 @@ class ScreenCaptureService : Service() {
     private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
     private val processing = AtomicBoolean(false)
     private val aggregator = OcrMinuteCandleAggregator()
-    private val engine = SignalEngine(minimumConfidence = 72, minimumCandles = 30)
+    private val engine = SignalEngine(minimumConfidence = 70, minimumCandles = 12)
     @Volatile private var lastProcessedAt = 0L
     @Volatile private var lastAssetSeenAt = 0L
 
@@ -146,11 +146,11 @@ class ScreenCaptureService : Service() {
                         ScreenCaptureState.candleCount = analysisCandles.size
                         val decision = engine.analyze(analysisCandles)
                         if (decision.ready && decision.direction != null) {
-                            ScreenCaptureState.signalText = decision.direction.name
+                            ScreenCaptureState.signalText = if (decision.direction == SignalDirection.CALL) "ВВЕРХ" else "ВНИЗ"
                             ScreenCaptureState.signalConfidence = decision.confidence
                             ScreenCaptureState.signalExpiryMinutes = decision.expirationMinutes.coerceAtLeast(1)
                             ScreenCaptureState.signalReasons = decision.reasons.joinToString(" · ")
-                            ScreenCaptureState.status = "График распознан · кандидат сигнала, нужна проверка"
+                            ScreenCaptureState.status = "СИГНАЛ · ${decision.confidence}% · экспирация ${decision.expirationMinutes} мин"
                         } else {
                             ScreenCaptureState.signalText = "НЕТ СИГНАЛА"
                             ScreenCaptureState.signalConfidence = 0
