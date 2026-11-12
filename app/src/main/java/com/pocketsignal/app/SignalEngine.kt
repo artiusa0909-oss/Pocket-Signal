@@ -6,7 +6,7 @@ import kotlin.math.min
 
 /**
  * Selective technical-analysis engine for visible M1 candles.
- * Confidence is a confluence score, NOT a calibrated win probability.
+ * Directional percentages are normalized factor scores, NOT calibrated win probabilities.
  */
 class SignalEngine(
     private val minimumConfidence: Int = 68,
@@ -23,8 +23,6 @@ class SignalEngine(
             return noSignal("Нужно минимум $minimumCandles корректных свечей M1, сейчас ${candles.size}.")
         }
 
-        // Adapt indicator windows to the candles already visible on screen.
-        // Three valid candles are enough for an initial directional assessment.
         val fastPeriod = when {
             candles.size >= 25 -> 9
             candles.size >= 12 -> 5
@@ -91,25 +89,40 @@ class SignalEngine(
         if (rsiValue >= 75.0) callScore = (callScore - 12).coerceAtLeast(0)
         if (rsiValue <= 25.0) putScore = (putScore - 12).coerceAtLeast(0)
 
-        val best = max(callScore, putScore)
-        if (best < minimumConfidence || abs(callScore - putScore) < 18) {
-            return SignalDecision(null, best.coerceAtMost(99), 1,
+        val (upPercent, downPercent) = directionalPercentages(callScore, putScore)
+        val bestRawScore = max(callScore, putScore)
+        if (bestRawScore < minimumConfidence || abs(callScore - putScore) < 18) {
+            return SignalDecision(
+                null, bestRawScore.coerceAtMost(99), 1,
                 listOf("Фильтр SELECTIVE: факторы не дают достаточно сильного перевеса."),
-                false, "Сигнала нет. Ожидание более ясной ситуации.")
+                false, "Сигнала нет. Ожидание более ясной ситуации.",
+                upPercent, downPercent
+            )
         }
 
         val direction = if (callScore > putScore) SignalDirection.CALL else SignalDirection.PUT
         val reasons = if (direction == SignalDirection.CALL) callReasons else putReasons
         val expiration = when {
-            best >= 86 && trendStrength >= 0.75 -> 3
-            best >= 78 && trendStrength >= 0.45 -> 2
+            bestRawScore >= 86 && trendStrength >= 0.75 -> 3
+            bestRawScore >= 78 && trendStrength >= 0.45 -> 2
             else -> 1
         }
-        return SignalDecision(direction, best.coerceAtMost(92), expiration, reasons, true,
-            "Сигнал рассчитан по видимым свечам M1. Процент показывает согласованность факторов, не вероятность выигрыша.")
+        return SignalDecision(
+            direction, max(upPercent, downPercent), expiration, reasons, true,
+            "Сигнал рассчитан по видимым свечам M1. Проценты показывают относительную поддержку факторов, не вероятность выигрыша.",
+            upPercent, downPercent
+        )
     }
 
-    private fun noSignal(message: String) = SignalDecision(null, 0, 1, emptyList(), false, message)
+    private fun directionalPercentages(upScore: Int, downScore: Int): Pair<Int, Int> {
+        val total = upScore + downScore
+        if (total <= 0) return 50 to 50
+        val up = ((upScore.toDouble() / total.toDouble()) * 100.0).toInt().coerceIn(0, 100)
+        return up to (100 - up)
+    }
+
+    private fun noSignal(message: String) =
+        SignalDecision(null, 0, 1, emptyList(), false, message, 50, 50)
 
     private fun ema(values: List<Double>, period: Int): Double {
         val alpha = 2.0 / (period + 1.0)
