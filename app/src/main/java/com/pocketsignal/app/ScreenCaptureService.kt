@@ -113,7 +113,11 @@ class ScreenCaptureService : Service() {
                 ScreenCaptureState.lastFrameAtMillis = System.currentTimeMillis()
                 ScreenCaptureState.visibleCandleCount = vision.visibleCandleCount
                 ScreenCaptureState.chartMovement = vision.movement
-                ScreenCaptureState.chartCalibration = if (vision.calibrated) "Шкала цены распознана" else "Свечи видны · шкала цены не откалибрована"
+                ScreenCaptureState.chartCalibration = when {
+                    !vision.calibrated -> "Свечи видны · шкала цены не откалибрована"
+                    parsed.isM1Chart -> "Шкала цены распознана · таймфрейм M1"
+                    else -> "Шкала распознана · M1 строится по потоку котировок"
+                }
 
                 if (parsed.asset != null) {
                     if (parsed.asset != ScreenCaptureState.detectedAsset) {
@@ -126,7 +130,8 @@ class ScreenCaptureService : Service() {
                 }
                 val asset = ScreenCaptureState.detectedAsset
                 val freshAsset = asset.isNotBlank() && System.currentTimeMillis() - lastAssetSeenAt < 10_000L
-                val price = parsed.priceText
+                val visualPrice = vision.candles.lastOrNull()?.close
+                val price = parsed.priceText ?: visualPrice?.toString()
                 if (freshAsset && price != null) {
                     val value = price.toDoubleOrNull()
                     if (value != null && value.isFinite() && value > 0.0) {
@@ -137,10 +142,10 @@ class ScreenCaptureService : Service() {
 
                         // Vision-derived candles are used only when the visible chart scale can be
                         // calibrated from at least two OCR price-axis labels. This avoids fabricated OHLC.
-                        val analysisCandles = if (vision.calibrated) vision.candles else ocrCandles
+                        val analysisCandles = if (vision.calibrated && parsed.isM1Chart) vision.candles else ocrCandles
                         ScreenCaptureState.candleCount = analysisCandles.size
                         val decision = engine.analyze(analysisCandles)
-                        if (vision.calibrated && decision.ready && decision.direction != null) {
+                        if (decision.ready && decision.direction != null) {
                             ScreenCaptureState.signalText = decision.direction.name
                             ScreenCaptureState.signalConfidence = decision.confidence
                             ScreenCaptureState.signalExpiryMinutes = decision.expirationMinutes.coerceAtLeast(1)

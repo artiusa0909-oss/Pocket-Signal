@@ -5,7 +5,8 @@ data class OcrPriceAxisTick(val price: Double, val y: Float)
 data class OcrMarketSnapshot(
     val asset: String?,
     val priceText: String?,
-    val axisTicks: List<ChartPriceAxisTick> = emptyList()
+    val axisTicks: List<ChartPriceAxisTick> = emptyList(),
+    val isM1Chart: Boolean = false
 )
 
 /** Reads the asset label, visible quote and right-axis calibration points. */
@@ -33,6 +34,7 @@ object PocketOptionOcrParser {
         }.toList()
         val distinctPrices = candidates.map { it.price }.distinct()
         val quote = distinctPrices.singleOrNull()?.toString()
-        return OcrMarketSnapshot(asset, quote, candidates.map { ChartPriceAxisTick(it.price, it.y) })
+        val isM1 = lines.any { Regex("(?i)\\b(?:1\\s*m|m1|1\\s*min(?:ute)?)\\b").containsMatchIn(it.text) }
+        return OcrMarketSnapshot(asset, quote, candidates.map { ChartPriceAxisTick(it.price, it.y) }, isM1)
     }
 }
