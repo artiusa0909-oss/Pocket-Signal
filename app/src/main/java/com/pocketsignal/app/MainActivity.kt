@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -79,6 +80,14 @@ private val demoCandles = listOf(
 @Composable
 fun PocketSignalScreen() {
     val context = LocalContext.current
+    val liveSignal by produceState(
+        initialValue = Triple(ScreenCaptureState.signalText, ScreenCaptureState.upProbability, ScreenCaptureState.downProbability)
+    ) {
+        while (true) {
+            value = Triple(ScreenCaptureState.signalText, ScreenCaptureState.upProbability, ScreenCaptureState.downProbability)
+            delay(500L)
+        }
+    }
     var selectedAsset by remember { mutableStateOf("EUR/USD OTC") }
     var assetMenuExpanded by remember { mutableStateOf(false) }
     var statusMessage by remember {
@@ -228,11 +237,13 @@ fun PocketSignalScreen() {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text("ПОСЛЕДНИЙ СИГНАЛ", color = Muted, fontSize = 11.sp)
-                    Text("НЕТ СИГНАЛА", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                    Text(liveSignal.first, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                    Text("ВВЕРХ — ${liveSignal.second}%", color = Accent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("ВНИЗ — ${liveSignal.third}%", color = Color(0xFFFF647C), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "Сигналы не формируются до подключения проверенного потока котировок.",
+                        "Проценты показывают относительную поддержку факторов на основе распознанных свечей, а не статистическую вероятность выигрыша.",
                         color = Muted,
-                        fontSize = 12.sp
+                        fontSize = 11.sp
                     )
                 }
             }
