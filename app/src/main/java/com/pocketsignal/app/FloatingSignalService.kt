@@ -34,6 +34,7 @@ class FloatingSignalService : Service() {
     private var downView: TextView? = null
     private var signalView: TextView? = null
     private var reasonView: TextView? = null
+    private var aiView: TextView? = null
     private val refresh = object : Runnable {
         override fun run() {
             statusView?.text = ScreenCaptureState.status
@@ -46,6 +47,7 @@ class FloatingSignalService : Service() {
             signalView?.text = ScreenCaptureState.signalText + "  ·  экспирация " +
                 ScreenCaptureState.signalExpiryMinutes + " мин"
             reasonView?.text = ScreenCaptureState.signalReasons
+            aiView?.text = "ИИ: ${ScreenCaptureState.aiStatus} · " + when (ScreenCaptureState.aiDirection) { "CALL" -> "ВВЕРХ"; "PUT" -> "ВНИЗ"; else -> "ОЖИДАНИЕ" } + " · ${ScreenCaptureState.aiUpScore}/${ScreenCaptureState.aiDownScore}"
             handler.postDelayed(this, 500L)
         }
     }
@@ -72,8 +74,9 @@ class FloatingSignalService : Service() {
         downView = label("ВНИЗ  ·  50%", 14f, Color.rgb(255, 100, 124), true)
         signalView = label("НЕТ СИГНАЛА  ·  экспирация 1 мин", 13f, Color.WHITE, true)
         reasonView = label("Проценты показывают поддержку факторов, не гарантию выигрыша", 9f, Color.rgb(255, 194, 102))
+        aiView = label("ИИ: не подключён", 10f, Color.rgb(255, 194, 102), true)
         body.addView(statusView); body.addView(quoteView); body.addView(candlesView); body.addView(movementView)
-        body.addView(upView); body.addView(downView); body.addView(signalView); body.addView(reasonView)
+        body.addView(upView); body.addView(downView); body.addView(signalView); body.addView(reasonView); body.addView(aiView)
         val connect = Button(this).apply {
             text = "ПОДКЛЮЧИТЬ POCKET OPTION"
             setOnClickListener { startActivity(Intent(this@FloatingSignalService, ScreenCaptureActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
@@ -109,7 +112,7 @@ class FloatingSignalService : Service() {
     override fun onDestroy() {
         panel?.let { wm.removeView(it) }; panel = null; handler.removeCallbacks(refresh)
         statusView = null; quoteView = null; candlesView = null; movementView = null
-        upView = null; downView = null; signalView = null; reasonView = null
+        upView = null; downView = null; signalView = null; reasonView = null; aiView = null
         super.onDestroy()
     }
     override fun onBind(intent: Intent?): IBinder? = null
