@@ -38,6 +38,7 @@ class ScreenCaptureService : Service() {
     private val engine = SignalEngine(minimumConfidence = 68, minimumCandles = 3)
     @Volatile private var lastProcessedAt = 0L
     @Volatile private var lastAssetSeenAt = 0L
+    @Volatile private var lastAiRequestAt = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -147,6 +148,44 @@ class ScreenCaptureService : Service() {
                     val analysisCandles = if (hasVisibleM1Candles) vision.candles else ocrCandles
                     ScreenCaptureState.candleCount = analysisCandles.size
                     val decision = engine.analyze(analysisCandles)
+                    if (analysisCandles.size >= 3 && ChartAiAnalyzer.configured(this) &&
+                        System.currentTimeMillis() - lastAiRequestAt >= 15_000L) {
+                        lastAiRequestAt = System.currentTimeMillis()
+                        ScreenCaptureState.aiStatus = "ИИ анализирует график…"
+                        try {
+                            val cropLeft = (bitmap.width * 0.035f).toInt().coerceAtLeast(0)
+                            val cropTop = (bitmap.height * 0.14f).toInt().coerceAtLeast(0)
+                            val cropWidth = (bitmap.width * 0.84f).toInt().coerceAtLeast(1)
+                                .coerceAtMost(bitmap.width - cropLeft)
+                            val cropHeight = (bitmap.height * 0.72f).toInt().coerceAtLeast(1)
+                                .coerceAtMost(bitmap.height - cropTop)
+                            val aiFrame = Bitmap.createBitmap(bitmap, cropLeft, cropTop, cropWidth, cropHeight)
+                            ChartAiAnalyzer.analyze(
+                                this, aiFrame, asset, analysisCandles,
+                                decision.upProbability, decision.downProbability
+                            ) { result ->
+                                result.fold(
+                                    onSuccess = { ai ->
+                                        ScreenCaptureState.aiDirection = ai.direction
+                                        ScreenCaptureState.aiUpScore = ai.upScore
+                                        ScreenCaptureState.aiDownScore = ai.downScore
+                                        ScreenCaptureState.aiConfidence = ai.confidence
+                                        ScreenCaptureState.aiExpiryMinutes = ai.expiryMinutes
+                                        ScreenCaptureState.aiSummary = ai.summary
+                                        ScreenCaptureState.aiRisks = ai.risks
+                                        ScreenCaptureState.aiStatus = "OpenAI · анализ получен"
+                                    },
+                                    onFailure = { error ->
+                                        ScreenCaptureState.aiStatus = "Ошибка ИИ: " + (error.message ?: "нет ответа")
+                                    }
+                                )
+                            }
+                        } catch (error: Exception) {
+                            ScreenCaptureState.aiStatus = "Ошибка подготовки изображения ИИ"
+                        }
+                    } else if (!ChartAiAnalyzer.configured(this)) {
+                        ScreenCaptureState.aiStatus = "Укажите адрес ИИ-сервера в настройках"
+                    }
                     ScreenCaptureState.upProbability = decision.upProbability
                     ScreenCaptureState.downProbability = decision.downProbability
                     if (decision.ready && decision.direction != null) {
