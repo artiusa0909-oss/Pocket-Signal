@@ -158,9 +158,11 @@ object ChartCandleVisionDetector {
             else -> "ДВИЖЕНИЕ ВНИЗ"
         }
 
+        // If OCR cannot read the numeric price axis, preserve the real candle geometry
+        // on a relative pixel-price scale. Direction and candle structure remain usable;
+        // the UI still reports that absolute price calibration is unavailable.
         val mapping = fitPriceScale(axisTicks)
-        if (mapping == null) return ChartVisionResult(detected.size, movement, emptyList(), false)
-        val (intercept, slope) = mapping
+        val (intercept, slope) = mapping ?: ((yEnd + 1000.0) to -1.0)
         val bars = detected.mapIndexedNotNull { index, c ->
             fun price(y: Int) = intercept + slope * y
             val high = price(c.highY)
@@ -171,7 +173,7 @@ object ChartCandleVisionDetector {
             else Candle(nowMillis / 60_000L * 60_000L - (detected.size - 1 - index) * 60_000L,
                 open, max(high, max(open, close)), min(low, min(open, close)), close)
         }
-        return ChartVisionResult(detected.size, movement, bars, bars.size >= 3)
+        return ChartVisionResult(detected.size, movement, bars, mapping != null && bars.size >= 3)
     }
 
     private data class Detected(
